@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { envKeys, parseEnvFile } from "./env-file";
+import { envKeys, parseEnvFile } from "@/lib/env-file";
 
 describe("parseEnvFile", () => {
   it("reads variables, skipping comments and blank lines", () => {
