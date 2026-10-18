@@ -30,6 +30,7 @@ export default async function EditSecretPage({
     username: secret.username,
     url: secret.url,
     ownerUserId: secret.ownerUserId,
+    projectId: secret.projectId ?? null,
     expiresAt: secret.expiresAt,
     rotationDays: secret.rotationDays,
     lastRotatedAt: secret.lastRotatedAt,

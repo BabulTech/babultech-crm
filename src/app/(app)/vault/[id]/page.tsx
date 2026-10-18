@@ -99,7 +99,7 @@ export default async function SecretPage({
               <CardTitle>The secret</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <RevealSecret secretId={id} />
+              <RevealSecret secretId={id} envFile={secret.kind === "ENV_FILE"} fileName={`${String(secret.name).replace(/[^A-Za-z0-9._-]+/g, "-")}.env`} />
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <DetailRow
@@ -108,6 +108,15 @@ export default async function SecretPage({
                 >
                   {(secret.storedIn as string) || "—"}
                 </DetailRow>
+                {secret.kind === "ENV_FILE" ? (
+                  <DetailRow label={`Variables (${(secret.envKeys as string[] | null)?.length ?? 0})`} help="The names only, which are searchable from the vault list. The values stay encrypted.">
+                    <span className="flex flex-wrap gap-1">
+                      {((secret.envKeys as string[] | null) ?? []).map((k) => (
+                        <code key={k} className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{k}</code>
+                      ))}
+                    </span>
+                  </DetailRow>
+                ) : (
                 <DetailRow label="Ends with" help="The last few characters, for matching it against the provider's dashboard without revealing it.">
                   {secret.valueHint ? (
                     <code className="font-mono text-sm">…{secret.valueHint as string}</code>
@@ -115,6 +124,7 @@ export default async function SecretPage({
                     "—"
                   )}
                 </DetailRow>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -124,8 +134,13 @@ export default async function SecretPage({
               <CardTitle>Details</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
+              <DetailRow label="Project">
+                {secret.project ? (
+                  <Link href={`/projects/${secret.project.id}`} className="text-primary hover:underline">{secret.project.name}</Link>
+                ) : "BabulTech Internal"}
+              </DetailRow>
               <DetailRow label="Service">{secret.service as string}</DetailRow>
-              <DetailRow label="Kind">{humanize(secret.kind as string)}</DetailRow>
+              <DetailRow label="Kind">{secret.kind === "ENV_FILE" ? "Environment file (.env)" : humanize(secret.kind as string)}</DetailRow>
               <DetailRow label="Environment">
                 <Badge tone={secret.environment === "PRODUCTION" ? "warning" : "neutral"}>
                   {humanize(secret.environment as string)}

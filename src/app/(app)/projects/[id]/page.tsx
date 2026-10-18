@@ -13,6 +13,7 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { getProject, getProjectBurn, getProjectWorkLog } from "@/server/projects";
 import { getProjectPeople } from "@/server/project-directory";
 import { getAuditTrail } from "@/lib/audit";
+import { countProjectSecrets } from "@/server/secrets";
 import { auditFieldLabel } from "@/lib/audit-format";
 import {
   PageHeader, Card, CardHeader, CardTitle, CardContent, Badge, statusTone,
@@ -51,7 +52,7 @@ export default async function ProjectWorkspacePage({
   //
   // The notFound() check still happens before anything reads `project`; it just
   // no longer holds up the other six queries while it waits.
-  const [notes, documents, workLog, project, burn, options, audit] =
+  const [notes, documents, workLog, project, burn, options, audit, vaultCount] =
     await Promise.all([
       listNotes("Project", id),
       listDocuments("Project", id),
@@ -64,6 +65,8 @@ export default async function ProjectWorkspacePage({
       // them. At ~400ms a query that is most of a second spent on nothing.
       getProjectPeople().then((users) => ({ users })),
       getAuditTrail("Project", id, 10),
+      // Null for anyone without vault access, who sees no link at all.
+      countProjectSecrets(id),
     ]);
 
   if (!project) notFound();
@@ -110,6 +113,9 @@ export default async function ProjectWorkspacePage({
         </Button>}
         {canManage && <DeleteProjectButton projectId={project.id} name={`${project.projectNumber} ${project.name}`} />}
         <Button asChild variant="outline"><Link href={`/projects/${id}/content`}>Content calendar</Link></Button>
+        {vaultCount !== null && (
+          <Button asChild variant="outline"><Link href={`/vault?project=${id}`}>Vault ({vaultCount})</Link></Button>
+        )}
         <FollowControl entityType="Project" entityId={id} />
         <CorrectControl type="Project" id={id} />
         <FavoriteControl entityType="Project" entityId={id} label={String(project.name ?? "")} />

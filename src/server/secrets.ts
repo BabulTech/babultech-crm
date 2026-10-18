@@ -13,6 +13,7 @@ import {
   valueHint,
   vaultKeyConfigured,
 } from "@/lib/secret-crypto";
+import { envKeys, parseEnvFile } from "@/lib/env-file";
 
 /**
  * The credential vault.
@@ -31,8 +32,11 @@ import {
 
 const KINDS = [
   "API_KEY", "PASSWORD", "EMAIL_ACCOUNT", "DATABASE", "CERTIFICATE",
-  "SSH_KEY", "WEBHOOK_SECRET", "TOKEN", "OTHER",
+  "SSH_KEY", "WEBHOOK_SECRET", "TOKEN", "ENV_FILE", "OTHER",
 ] as const;
+
+/** A whole .env file is bigger than a key, but not unbounded. */
+const MAX_VALUE_LENGTH = 100_000;
 
 const ENVIRONMENTS = ["PRODUCTION", "STAGING", "DEVELOPMENT", "SHARED"] as const;
 const STATUSES = ["ACTIVE", "ROTATING", "REVOKED"] as const;
@@ -46,6 +50,8 @@ const secretSchema = z.object({
   username: z.string().max(255).optional().nullable(),
   url: z.string().optional().nullable(),
   ownerUserId: z.string().uuid(),
+  // Empty means BabulTech Internal: company-wide, no particular project.
+  projectId: z.string().uuid().optional().nullable().or(z.literal("")),
   expiresAt: z.string().optional().nullable(),
   rotationDays: z.coerce.number().int().positive().optional().nullable(),
   lastRotatedAt: z.string().optional().nullable(),
@@ -55,17 +61,29 @@ const secretSchema = z.object({
 
 /** On create the value is required; on edit, an empty box means "leave it alone". */
 const createSchema = secretSchema.extend({
-  value: z.string().min(1, "Enter the secret itself."),
+  value: z.string().min(1, "Enter the secret itself.").max(MAX_VALUE_LENGTH, "That is too long for one entry."),
 });
 
 const updateSchema = secretSchema.extend({
-  value: z.string().optional().nullable(),
+  value: z.string().max(MAX_VALUE_LENGTH, "That is too long for one entry.").optional().nullable(),
 });
+
+/**
+ * What the stored value implies for the unencrypted columns. A .env file
+ * keeps its variable names (searchable) and no hint: the last characters of a
+ * file say nothing useful and could be the tail of a real value.
+ */
+function valueColumns(kind: string, value: string): { error: string } | { valueHint: string | null; envKeys: string[] | null } {
+  if (kind !== "ENV_FILE") return { valueHint: valueHint(value), envKeys: null };
+  const { variables } = parseEnvFile(value);
+  if (variables.length === 0) return { error: "No variables found. Paste lines like NAME=value." };
+  return { valueHint: null, envKeys: envKeys(value) };
+}
 
 /** Columns safe to select anywhere. The ciphertext is deliberately absent. */
 const SAFE_COLUMNS = `
   id, secretNumber, name, kind, environment, status, service, username, url,
-  valueHint, ownerUserId, expiresAt, rotationDays, lastRotatedAt,
+  valueHint, ownerUserId, projectId, envKeys, expiresAt, rotationDays, lastRotatedAt,
   storedIn, notes, createdById, createdAt, updatedAt
 `;
 
@@ -101,6 +119,8 @@ export async function listSecrets(filters?: {
   environment?: string;
   status?: string;
   kind?: string;
+  /** A project id, or "internal" for BabulTech Internal. */
+  project?: string;
 }) {
   await requirePermission(PERMISSIONS.SECRET_READ);
 
@@ -108,7 +128,7 @@ export async function listSecrets(filters?: {
 
   let query = db
     .from("secret")
-    .select(`${SAFE_COLUMNS}, owner:app_user!secret_ownerUserId_fkey ( id, fullName )`)
+    .select(`${SAFE_COLUMNS}, owner:app_user!secret_ownerUserId_fkey ( id, fullName ), project ( id, name, projectNumber )`)
     .is("deletedAt", null)
     .order("service")
     .order("name");
@@ -116,7 +136,16 @@ export async function listSecrets(filters?: {
   if (filters?.environment) query = query.eq("environment", filters.environment);
   if (filters?.status) query = query.eq("status", filters.status);
   if (filters?.kind) query = query.eq("kind", filters.kind);
-  query = applySearch(query, filters?.search, ["name", "service", "username", "secretNumber"]);
+  if (filters?.project === "internal") query = query.is("projectId", null);
+  else if (filters?.project) query = query.eq("projectId", filters.project);
+  // Names and numbers by part; a .env file's variables by exact name, so
+  // RESEND_API_KEY finds every project that uses it.
+  const term = filters?.search?.replace(/[,(){}"]/g, "").trim();
+  if (term) {
+    const parts = ["name", "service", "username", "secretNumber"].map((c) => `${c}.ilike.%${term}%`);
+    if (/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(term)) parts.push(`envKeys.cs.{${term}}`, `envKeys.cs.{${term.toUpperCase()}}`);
+    query = query.or(parts.join(","));
+  }
 
   const { data, error } = await query.limit(LIST_LIMIT);
   if (error) throw new Error(`Could not load the vault: ${error.message}`);
@@ -124,6 +153,7 @@ export async function listSecrets(filters?: {
   return (data ?? []).map((row) => ({
     ...row,
     owner: Array.isArray(row.owner) ? row.owner[0] : row.owner,
+    project: (Array.isArray(row.project) ? row.project[0] : row.project) as { id: string; name: string; projectNumber: string } | null,
   }));
 }
 
@@ -137,7 +167,8 @@ export async function getSecret(id: string) {
     .select(
       `${SAFE_COLUMNS},
        owner:app_user!secret_ownerUserId_fkey ( id, fullName, email ),
-       createdBy:app_user!secret_createdById_fkey ( id, fullName )`,
+       createdBy:app_user!secret_createdById_fkey ( id, fullName ),
+       project ( id, name, projectNumber )`,
     )
     .eq("id", id)
     .is("deletedAt", null)
@@ -161,6 +192,7 @@ export async function getSecret(id: string) {
     ...data,
     owner: one(data.owner),
     createdBy: one(data.createdBy),
+    project: one(data.project) as { id: string; name: string; projectNumber: string } | null,
     accessLog: (log ?? []).map((entry) => ({ ...entry, user: one(entry.user) })),
   };
 }
@@ -221,7 +253,12 @@ export async function createSecret(
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
-  const { value, ...d } = parsed.data;
+  const { value: raw, ...d } = parsed.data;
+  // A browser submits a textarea's line breaks as CRLF; a .env file is kept
+  // with plain newlines, so Copy all gives back what was pasted.
+  const value = d.kind === "ENV_FILE" && raw ? raw.replace(/\r\n?/g, "\n") : raw;
+  const columns = valueColumns(d.kind, value);
+  if ("error" in columns) return { ok: false, error: columns.error, fieldErrors: { value: [columns.error] } };
 
   try {
     const encrypted = encryptSecret(value);
@@ -230,12 +267,13 @@ export async function createSecret(
       "secret",
       {
         ...d,
+        projectId: d.projectId || null,
         expiresAt: d.expiresAt || null,
         lastRotatedAt: d.lastRotatedAt || null,
         valueCiphertext: encrypted.ciphertext,
         valueIv: encrypted.iv,
         valueTag: encrypted.tag,
-        valueHint: valueHint(value),
+        ...columns,
         createdById: _auth.user.id,
         updatedAt: new Date().toISOString(),
       },
@@ -268,11 +306,15 @@ export async function updateSecret(
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
-  const { value, ...d } = parsed.data;
+  const { value: raw, ...d } = parsed.data;
+  // A browser submits a textarea's line breaks as CRLF; a .env file is kept
+  // with plain newlines, so Copy all gives back what was pasted.
+  const value = d.kind === "ENV_FILE" && raw ? raw.replace(/\r\n?/g, "\n") : raw;
 
   try {
     const payload: Record<string, unknown> = {
       ...d,
+      projectId: d.projectId || null,
       expiresAt: d.expiresAt || null,
       lastRotatedAt: d.lastRotatedAt || null,
       updatedAt: new Date().toISOString(),
@@ -281,11 +323,13 @@ export async function updateSecret(
     // An empty value box means "I am editing the label, not the credential".
     // Treating blank as a new value would wipe a live key on any metadata edit.
     if (value) {
+      const columns = valueColumns(d.kind, value);
+      if ("error" in columns) return { ok: false, error: columns.error, fieldErrors: { value: [columns.error] } };
       const encrypted = encryptSecret(value);
       payload.valueCiphertext = encrypted.ciphertext;
       payload.valueIv = encrypted.iv;
       payload.valueTag = encrypted.tag;
-      payload.valueHint = valueHint(value);
+      Object.assign(payload, columns);
       // Replacing the value IS the rotation, so the date follows it rather than
       // relying on someone remembering to set it by hand.
       payload.lastRotatedAt = new Date().toISOString().slice(0, 10);
@@ -338,6 +382,28 @@ export async function revokeSecret(id: string): Promise<ActionResult<{ id: strin
       error: err instanceof Error ? err.message : "Could not revoke the secret.",
     };
   }
+}
+
+/** Projects that hold at least one secret, for the vault's project filter. */
+export async function listVaultProjects() {
+  await requirePermission(PERMISSIONS.SECRET_READ);
+  const db = await supabaseServer();
+  const { data } = await db.from("secret").select("project ( id, name )").is("deletedAt", null).not("projectId", "is", null);
+  const seen = new Map<string, string>();
+  for (const row of data ?? []) {
+    const p = (Array.isArray(row.project) ? row.project[0] : row.project) as { id: string; name: string } | null;
+    if (p) seen.set(p.id, p.name);
+  }
+  return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** All secrets of one project, for the link on its page. Null without vault access. */
+export async function countProjectSecrets(projectId: string): Promise<number | null> {
+  const auth = await authorize(PERMISSIONS.SECRET_READ);
+  if (!auth.ok) return null;
+  const db = await supabaseServer();
+  const { count } = await db.from("secret").select("id", { count: "exact", head: true }).eq("projectId", projectId).is("deletedAt", null);
+  return count ?? 0;
 }
 
 /** The people a secret can be assigned to. */

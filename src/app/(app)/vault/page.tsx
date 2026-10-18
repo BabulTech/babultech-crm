@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Plus, KeyRound, AlertTriangle, RotateCw } from "lucide-react";
-import { listSecrets, isVaultReady } from "@/server/secrets";
+import { listSecrets, isVaultReady, listVaultProjects } from "@/server/secrets";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import {
   PageHeader, Card, Table, THead, TBody, TR, TH, TD, Badge, statusTone,
@@ -28,15 +28,17 @@ export default async function VaultPage({
     search?: string;
     environment?: string;
     status?: string;
+    project?: string;
   }>;
 }) {
   const me = await requireUser();
   if (!can(me, PERMISSIONS.SECRET_READ)) return <Forbidden what="the vault" />;
 
   const params = await searchParams;
-  const [secrets, vaultReady] = await Promise.all([
+  const [secrets, vaultReady, projects] = await Promise.all([
     listSecrets(params),
     isVaultReady(),
+    listVaultProjects(),
   ]);
 
   const canWrite = can(me, PERMISSIONS.SECRET_WRITE);
@@ -104,10 +106,17 @@ export default async function VaultPage({
           <div className="min-w-[220px] flex-1">
             <Input
               name="search"
-              placeholder="Search name, service or username…"
+              placeholder="Search name, service, username or a variable like RESEND_API_KEY…"
               defaultValue={params.search}
             />
           </div>
+          <Select name="project" defaultValue={params.project ?? ""} className="w-56">
+            <option value="">All projects</option>
+            <option value="internal">BabulTech Internal</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
           <Select name="environment" defaultValue={params.environment ?? ""} className="w-48">
             <option value="">All environments</option>
             {ENVIRONMENTS.map((e) => (
@@ -140,6 +149,7 @@ export default async function VaultPage({
             <THead>
               <TR>
                 <TH>Secret</TH>
+                <TH>Project</TH>
                 <TH>Service</TH>
                 <TH priority="secondary">Environment</TH>
                 <TH priority="tertiary">Owner</TH>
@@ -159,9 +169,16 @@ export default async function VaultPage({
                         {s.name}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {s.secretNumber} · {humanize(s.kind)}
+                        {s.secretNumber} · {s.kind === "ENV_FILE" ? `.env file · ${(s.envKeys as string[] | null)?.length ?? 0} variables` : humanize(s.kind)}
                         {s.valueHint && ` · ends ${s.valueHint}`}
                       </p>
+                    </TD>
+                    <TD className="text-sm">
+                      {s.project ? (
+                        <Link href={`/projects/${s.project.id}`} className="hover:underline">{s.project.name}</Link>
+                      ) : (
+                        <span className="text-muted-foreground">BabulTech Internal</span>
+                      )}
                     </TD>
                     <TD className="text-sm">
                       {s.service}

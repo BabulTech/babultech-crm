@@ -10,11 +10,13 @@ import {
 } from "@/components/ui";
 import { RecordLookup } from "@/components/record-lookup";
 import { humanize } from "@/lib/utils";
+import { parseEnvFile } from "@/lib/env-file";
 
 const KINDS = [
   "API_KEY", "PASSWORD", "EMAIL_ACCOUNT", "DATABASE", "CERTIFICATE",
-  "SSH_KEY", "WEBHOOK_SECRET", "TOKEN", "OTHER",
+  "SSH_KEY", "WEBHOOK_SECRET", "TOKEN", "ENV_FILE", "OTHER",
 ];
+const kindLabel = (k: string) => (k === "ENV_FILE" ? "Environment file (.env)" : humanize(k));
 const ENVIRONMENTS = ["PRODUCTION", "STAGING", "DEVELOPMENT", "SHARED"];
 const STATUSES = ["ACTIVE", "ROTATING", "REVOKED"];
 
@@ -32,6 +34,7 @@ export interface SecretDefaults {
   username: string | null;
   url: string | null;
   ownerUserId: string;
+  projectId: string | null;
   expiresAt: string | null;
   rotationDays: string | null;
   lastRotatedAt: string | null;
@@ -58,6 +61,10 @@ export function SecretForm({
   // Typed secrets are masked by default, so the value is not left on screen in
   // an office or a shared call while the rest of the form is filled in.
   const [showValue, setShowValue] = useState(false);
+  const [kind, setKind] = useState(defaults?.kind ?? "API_KEY");
+  const [envText, setEnvText] = useState("");
+  const envFile = kind === "ENV_FILE";
+  const parsedEnv = envFile && envText ? parseEnvFile(envText) : null;
 
   const editing = Boolean(defaults);
 
@@ -86,6 +93,7 @@ export function SecretForm({
       username: get("username"),
       url: get("url"),
       ownerUserId: String(formData.get("ownerUserId") ?? ""),
+      projectId: get("projectId"),
       expiresAt: get("expiresAt"),
       rotationDays: get("rotationDays"),
       lastRotatedAt: get("lastRotatedAt"),
@@ -100,8 +108,8 @@ export function SecretForm({
         : await createSecret(input);
 
       if (result.ok) {
-        router.push(`/vault/${result.data.id}`);
-        router.refresh();
+        // A full load: router.push did not take effect on the live build.
+        window.location.assign(`/vault/${result.data.id}`);
       } else {
         setError(result.error);
         setFieldErrors(result.fieldErrors ?? {});
@@ -124,8 +132,13 @@ export function SecretForm({
               name="name"
               required
               defaultValue={defaults?.name}
-              placeholder="Stripe live secret key"
+              placeholder={envFile ? "BabulPos production .env" : "Stripe live secret key"}
             />
+          </Field>
+          <Field label="Project"
+            help="The project this belongs to. Leave it empty for company-wide credentials, which are filed under BabulTech Internal.">
+            <RecordLookup entity="project" name="projectId" defaultValue={defaults?.projectId ?? null}
+              emptyLabel="BabulTech Internal" placeholder="Search projects… (empty = BabulTech Internal)" />
           </Field>
           <Field label="Service" required error={fieldErrors.service?.[0]}
             help="The system it belongs to. A key with no service attached is unidentifiable six months later.">
@@ -138,9 +151,9 @@ export function SecretForm({
           </Field>
           <Field label="Kind" required
             help="What sort of credential it is. Only used for grouping and filtering.">
-            <Select name="kind" required defaultValue={defaults?.kind ?? "API_KEY"}>
+            <Select name="kind" required value={kind} onChange={(e) => setKind(e.target.value)}>
               {KINDS.map((k) => (
-                <option key={k} value={k}>{humanize(k)}</option>
+                <option key={k} value={k}>{kindLabel(k)}</option>
               ))}
             </Select>
           </Field>
@@ -187,6 +200,26 @@ export function SecretForm({
             }
             help="Encrypted before it is stored. It can only be read back through Reveal, and every reveal is recorded against your name."
           >
+            {envFile ? (
+              <div className="space-y-2">
+                <Textarea
+                  name="value"
+                  rows={14}
+                  required={!editing}
+                  spellCheck={false}
+                  value={envText}
+                  onChange={(e) => setEnvText(e.target.value)}
+                  className="font-mono text-xs"
+                  placeholder={editing ? "Unchanged. Paste the whole new file to replace it." : "Paste the whole .env file\nDATABASE_URL=postgres://…\nRESEND_API_KEY=re_…"}
+                />
+                {parsedEnv && (
+                  <p className={parsedEnv.invalidLines.length ? "text-xs text-amber-700 dark:text-amber-400" : "text-xs text-muted-foreground"}>
+                    {parsedEnv.variables.length} variable{parsedEnv.variables.length === 1 ? "" : "s"} found
+                    {parsedEnv.invalidLines.length > 0 && ` · line${parsedEnv.invalidLines.length === 1 ? "" : "s"} ${parsedEnv.invalidLines.slice(0, 8).join(", ")} ${parsedEnv.invalidLines.length === 1 ? "is" : "are"} not NAME=value (kept as written)`}
+                  </p>
+                )}
+              </div>
+            ) : (
             <div className="flex gap-2">
               <Input
                 name="value"
@@ -205,6 +238,7 @@ export function SecretForm({
                 {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+            )}
           </Field>
 
           {editing && (
