@@ -1,3 +1,5 @@
+import { sanitizeRichText, richTextToPlain } from "./rich-text";
+
 /**
  * The HTML wrapper every outbound email gets.
  *
@@ -95,6 +97,11 @@ export interface DocumentEmail {
   documentTitle: string;
   /** The typed message, plain text with blank lines between paragraphs. */
   message: string;
+  /**
+   * The message as rich text, from an editable template. Used instead of
+   * `message` when given; cleaned again here before it is sent.
+   */
+  messageHtml?: string | null;
   summary: SummaryRow[];
   /** Optional call to action, e.g. a link back to a portal. */
   action?: { label: string; url: string };
@@ -120,6 +127,19 @@ const safeUrl = (value: string | null | undefined): string | null => {
     return null;
   }
 };
+
+/**
+ * A rich-text message styled for email clients, which ignore stylesheets:
+ * every paragraph, list and link carries its own inline style.
+ */
+function richParagraphs(html: string, color: string, linkColor: string): string {
+  const clean = sanitizeRichText(html) ?? "";
+  return clean
+    .replace(/<p>/g, `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${color};">`)
+    .replace(/<(ul|ol)>/g, `<$1 style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.65;color:${color};">`)
+    .replace(/<h([1-3])>/g, `<h$1 style="margin:0 0 12px;font-size:17px;color:${color};">`)
+    .replace(/<a /g, `<a style="color:${linkColor};" `);
+}
 
 function paragraphs(text: string, color: string): string {
   return text
@@ -163,7 +183,10 @@ function masthead(b: EmailBranding): string {
 }
 
 export function renderDocumentEmail(input: DocumentEmail): { html: string; text: string } {
-  const { branding: b, documentTitle, message, summary, action, senderName, senderTitle } = input;
+  const { branding: b, documentTitle, summary, action, senderName, senderTitle, messageHtml } = input;
+  // A rich-text template supplies the plain version too, for the text part
+  // and the inbox preview line.
+  const message = messageHtml ? richTextToPlain(messageHtml) : input.message;
   const signedBy = senderTitle?.trim() ? `${senderName} (${senderTitle.trim()})` : senderName;
 
   const summaryRows = summary
@@ -233,7 +256,7 @@ export function renderDocumentEmail(input: DocumentEmail): { html: string; text:
     </td></tr>
 
     <tr><td style="padding:28px 32px 8px;">
-      ${paragraphs(message, b.textColor)}
+      ${messageHtml ? richParagraphs(messageHtml, b.textColor, b.brandColorDark) : paragraphs(message, b.textColor)}
     </td></tr>
 
     ${

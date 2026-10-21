@@ -40,6 +40,7 @@ export default async function SettingsPage() {
         <Button asChild variant="outline"><Link href="/settings/automation">Approval and automatic rules</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/numbering">Record numbering</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/integrations">Webhooks and integrations</Link></Button>
+        <Button asChild variant="outline"><Link href="/settings/email-templates">System emails</Link></Button>
       </PageHeader>
 
       {everythingEmpty && (

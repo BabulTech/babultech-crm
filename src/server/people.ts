@@ -16,6 +16,7 @@ import {
   type ContractType, type EducationEntry, type ExperienceEntry,
 } from "@/lib/people";
 import { renderDocumentEmail, emailSettingsFromRow, brandingFromSettings, EMAIL_SETTINGS_ID } from "@/lib/email-template";
+import { renderSystemEmail } from "@/lib/system-emails";
 import { createUser } from "./users";
 import type { ActionResult } from "./partners";
 
@@ -648,10 +649,18 @@ export async function sendForSigning(id: string, options: { email?: boolean } = 
   let emailedTo: string | null = null;
   if (options.email && staff.personalEmail) {
     const { data: settings } = await db().from("email_settings").select("*").eq("id", EMAIL_SETTINGS_ID).maybeSingle();
+    const branding = brandingFromSettings(emailSettingsFromRow(settings));
+    // Wording from Settings → System emails, or the built-in default.
+    const template = await renderSystemEmail("CONTRACT_SIGNING", {
+      fullName: String(staff.fullName), firstName: String(staff.fullName).split(" ")[0], companyName: branding.companyName,
+      contractNumber: String(contract.contractNumber), contractType: CONTRACT_TYPE_LABELS[contract.contractType as ContractType].toLowerCase(),
+      position: String(contract.jobTitle ?? ""), linkDays: String(SIGNING_LINK_DAYS),
+    });
     const { html, text: plain } = renderDocumentEmail({
-      branding: brandingFromSettings(emailSettingsFromRow(settings)),
+      branding,
       documentTitle: `Your contract ${contract.contractNumber}`,
-      message: `Dear ${staff.fullName},\n\nYour ${CONTRACT_TYPE_LABELS[contract.contractType as ContractType].toLowerCase()} contract is ready. Please read it and sign it using the link below. The link works for ${SIGNING_LINK_DAYS} days.`,
+      message: "",
+      messageHtml: template.messageHtml,
       summary: [
         { label: "Position", value: contract.jobTitle },
         { label: "From", value: contractDate(contract.startDate) },
@@ -665,7 +674,7 @@ export async function sendForSigning(id: string, options: { email?: boolean } = 
     const sent = await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "BabulTech CRM <onboarding@resend.dev>",
       to: staff.personalEmail, replyTo: process.env.EMAIL_REPLY_TO ?? auth.user.email,
-      subject: `Your contract ${contract.contractNumber} is ready to sign`, html, text: plain,
+      subject: template.subject, html, text: plain,
     });
     if (sent.error) return { ok: false, error: `The link was created but the email failed: ${sent.error.message}. Copy the link instead.` };
     emailedTo = staff.personalEmail;

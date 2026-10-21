@@ -5,6 +5,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "./supabase";
 import { writeAudit } from "./audit";
 import { isReservedAddress } from "./notification-mailer";
+import { renderSystemEmail } from "./system-emails";
 import { renderDocumentEmail, brandingFromSettings, emailSettingsFromRow, EMAIL_SETTINGS_ID } from "./email-template";
 
 /**
@@ -102,12 +103,15 @@ export async function issuePasswordLink(input: {
   const lasts = days >= 2 ? `${days} days` : "24 hours";
   const signIn = `${url.slice(0, url.indexOf("/reset-password/"))}/login`;
 
+  // Wording from Settings → System emails, or the built-in default.
+  const template = await renderSystemEmail(welcome ? "LOGIN_WELCOME" : "PASSWORD_RESET", {
+    firstName, fullName: String(user.fullName), email: to, companyName: branding.companyName, linkLasts: lasts,
+  });
   const { html, text } = renderDocumentEmail({
     branding,
     documentTitle: welcome ? `Your ${branding.companyName} CRM login` : "Reset your password",
-    message: welcome
-      ? `Hello ${firstName},\n\nA login has been created for you on the ${branding.companyName} CRM. Choose your password using the button below, then sign in with your email address.\n\nThe link works once and lasts ${lasts}. If it runs out, ask your administrator to send a new one.`
-      : `Hello ${firstName},\n\nYour administrator has sent you a link to set a new password for the ${branding.companyName} CRM. Use the button below to choose it, then sign in with your email address.\n\nThe link works once and lasts ${lasts}. If you were not expecting this, tell your administrator.`,
+    message: "",
+    messageHtml: template.messageHtml,
     summary: [
       { label: "Your sign-in email", value: to, emphasis: true },
       { label: "Sign in at", value: signIn },
@@ -118,7 +122,7 @@ export async function issuePasswordLink(input: {
   });
 
   const from = process.env.EMAIL_FROM ?? "BabulTech CRM <onboarding@resend.dev>";
-  const subject = welcome ? `Your ${branding.companyName} CRM login` : `Reset your ${branding.companyName} CRM password`;
+  const subject = template.subject;
   const rowId = randomUUID();
   // The link itself is not kept in the email log: it is as good as a password until used.
   const safeHtml = html.split(url).join(`${url.slice(0, url.lastIndexOf("/"))}/…`);

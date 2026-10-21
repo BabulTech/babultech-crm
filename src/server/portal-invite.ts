@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase";
 import { renderDocumentEmail, type EmailBranding } from "@/lib/email-template";
+import { renderSystemEmail } from "@/lib/system-emails";
 import { isReservedAddress } from "@/lib/notification-mailer";
 
 /**
@@ -69,20 +70,17 @@ export async function sendPortalWelcome(input: {
   const portalName = partner ? "partner portal" : "support portal";
   const firstName = input.fullName.split(" ")[0] ?? input.fullName;
 
-  const message = first
-    ? `Hello ${firstName},\n\n` +
-      (partner
-        ? "You can now sign in to our partner portal to add customers and deals, follow the ones you have brought us, and see your commission on each.\n\n"
-        : "You can now sign in to raise support tickets with us, follow what is happening with them, and read our help articles.\n\n") +
-      "Use the details below to sign in. Please change the password after you first sign in, and do not share it."
-    : `Hello ${firstName},\n\n` +
-      `Your ${portalName} password has been reset. Use the details below to sign in.\n\n` +
-      "If you did not ask for this, tell us straight away.";
+  // Wording from Settings → System emails, or the built-in default.
+  const template = await renderSystemEmail(
+    first ? (partner ? "PARTNER_PORTAL_WELCOME" : "CUSTOMER_PORTAL_WELCOME") : "PORTAL_PASSWORD_RESET",
+    { firstName, fullName: input.fullName, email: input.to, companyName: b.companyName, portalName },
+  );
 
   const { html, text } = renderDocumentEmail({
     branding: b,
     documentTitle: first ? `Your ${portalName} access` : "Your new portal password",
-    message,
+    message: "",
+    messageHtml: template.messageHtml,
     summary: [
       { label: "Sign in at", value: signInUrl },
       { label: "Your email", value: input.to },
@@ -99,7 +97,7 @@ export async function sendPortalWelcome(input: {
     id: rowId,
     updatedAt: now,
     direction: "OUTBOUND",
-    subject: first ? `Your ${b.companyName} ${portalName} access` : `Your new ${b.companyName} portal password`,
+    subject: template.subject,
     fromAddress: FROM,
     toAddresses: [input.to],
     bodyHtml: html,
