@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import { picklistCode } from "@/lib/picklists";
 import { supabaseServer } from "@/lib/supabase";
@@ -88,7 +89,7 @@ export async function createCase(
 
   const parsed = caseSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -172,7 +173,7 @@ export async function updateCase(
 
   const parsed = caseUpdateSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 

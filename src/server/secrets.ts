@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabase";
@@ -249,7 +250,7 @@ export async function createSecret(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -302,7 +303,7 @@ export async function updateSecret(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }

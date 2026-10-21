@@ -81,7 +81,7 @@ const blankLine = (): Line => ({
   projectTaskId: "",
   hours: "",
   description: "",
-  billable: true,
+  billable: false,
   completeTask: false,
 });
 

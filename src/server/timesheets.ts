@@ -1,6 +1,7 @@
 "use server";
 
 import { TIME_PUBLIC_COLUMNS, withRateSnapshots } from "@/lib/rate-snapshots";
+import { describeInvalid } from "@/lib/form-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import Decimal from "decimal.js";
@@ -82,7 +83,7 @@ const timeLogSchema = z
     startTime: z.string().optional().nullable(),
     endTime: z.string().optional().nullable(),
     description: z.string().min(1, "Say what you worked on."),
-    billable: z.boolean().default(true),
+    billable: z.boolean().default(false),
   })
   .refine(
     (v) => Boolean(v.hours) || hoursBetween(v.startTime, v.endTime) !== null,
@@ -118,7 +119,7 @@ export async function logTime(
 
   const parsed = timeLogSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -255,7 +256,7 @@ const workLogLineSchema = z.object({
   projectTaskId: z.string().uuid().optional().nullable(),
   hours: z.coerce.number().positive().max(HOURS_PER_DAY_CEILING),
   description: z.string().min(1, "Say what you worked on."),
-  billable: z.boolean().default(true),
+  billable: z.boolean().default(false),
   /** Move the task to COMPLETED once the time is recorded. */
   completeTask: z.boolean().default(false),
 });
@@ -277,7 +278,7 @@ export async function logProjectDay(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -390,7 +391,7 @@ export async function updateTimeLog(
 
   const parsed = timeLogSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
   try {

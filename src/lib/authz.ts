@@ -1,4 +1,6 @@
 import { cache } from "react";
+// Validation messages that name the field: "Name is required."
+import "./form-errors";
 import { ensureCurrencyContext, getCompanyTimeZone } from "@/lib/currency-loader";
 import { setRequestDatePrefs, validTimeZone, type DateFormat, type DatePrefs } from "@/lib/date-prefs";
 import { headers } from "next/headers";

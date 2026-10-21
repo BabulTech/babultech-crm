@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase";
 import { requireUser, AuthorizationError } from "@/lib/authz";
@@ -191,7 +192,7 @@ export async function savePartnerItem(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }

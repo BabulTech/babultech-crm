@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import Decimal from "decimal.js";
 import { toDecimal, one } from "@/lib/decimal";
@@ -110,7 +111,7 @@ export async function createPartner(input: PartnerInput): Promise<ActionResult<{
 
   const parsed = partnerSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -188,7 +189,7 @@ export async function updatePartner(
 
   const parsed = updatePartnerSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const { id, ...changes } = parsed.data;
 

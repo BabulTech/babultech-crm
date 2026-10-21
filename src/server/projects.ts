@@ -1,6 +1,7 @@
 "use server";
 
 import { deleteToRecycleBin } from "./recycle-bin";
+import { describeInvalid } from "@/lib/form-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import Decimal from "decimal.js";
@@ -165,7 +166,7 @@ export async function createProject(
 
   const parsed = projectSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -216,7 +217,7 @@ export async function updateProject(
 
   const parsed = projectSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -554,7 +555,7 @@ export async function createPhase(
 
   const parsed = phaseSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -647,7 +648,7 @@ export async function createMilestone(
 
   const parsed = milestoneSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -754,7 +755,7 @@ const taskSchema = z.object({
   dueDate: z.coerce.date().optional().nullable(),
   estimatedHours: z.coerce.number().min(0).optional().nullable(),
   completionPercent: z.coerce.number().min(0).max(100).optional().nullable(),
-  billable: z.boolean().default(true),
+  billable: z.boolean().default(false),
   acceptanceCriteria: z.string().optional().nullable(),
   // What kind of work it is. Tasks no longer carry a price: what the customer
   // pays was settled on the deal, and a task that came from it records the
@@ -829,7 +830,7 @@ export async function createTask(
 
   const parsed = taskSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -889,7 +890,7 @@ export async function updateTask(
 
   const parsed = taskSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -1242,7 +1243,7 @@ export async function addProjectMember(
 
   const parsed = memberSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -1303,7 +1304,7 @@ export async function updateProjectMember(
 
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
   try {
@@ -1413,7 +1414,7 @@ export async function createRisk(
 
   const parsed = riskSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -1449,7 +1450,7 @@ export async function createIssue(
 
   const parsed = issueSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 

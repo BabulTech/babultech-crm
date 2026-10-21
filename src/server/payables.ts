@@ -1,6 +1,7 @@
 "use server";
 
 import { isValidDay } from "@/lib/date-range";
+import { describeInvalid } from "@/lib/form-errors";
 import { deleteToRecycleBin } from "./recycle-bin";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -231,7 +232,7 @@ export async function createExpenseCategory(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -290,7 +291,7 @@ export async function createExpense(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -399,7 +400,7 @@ export async function updateExpense(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1057,7 +1058,7 @@ export async function createVendorBill(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1135,7 +1136,7 @@ export async function updateVendorBill(
 
   const parsed = vendorBillSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const d = parsed.data;
   if (d.dueDate < d.billDate) {
@@ -1327,7 +1328,7 @@ export async function recordVendorPayment(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import { picklistCode } from "@/lib/picklists";
 import Decimal from "decimal.js";
@@ -70,7 +71,7 @@ export async function createOpportunity(
 
   const parsed = opportunitySchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -125,7 +126,7 @@ export async function updateOpportunity(
 
   const parsed = opportunityUpdateSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -205,7 +206,7 @@ export async function changeStage(
 
   const parsed = stageSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 

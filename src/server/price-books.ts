@@ -1,6 +1,7 @@
 "use server";
 
 import { deleteToRecycleBin } from "./recycle-bin";
+import { describeInvalid } from "@/lib/form-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase";
@@ -149,7 +150,7 @@ export async function savePriceBook(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -292,7 +293,7 @@ export async function savePriceBookEntry(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }

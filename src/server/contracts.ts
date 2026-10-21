@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase";
 import { createRecord, updateRecord } from "@/lib/db";
@@ -70,7 +71,7 @@ export async function createContract(
 
   const parsed = contractSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const invalid = validate(parsed.data);
   if (invalid) return invalid;
@@ -103,7 +104,7 @@ export async function updateContract(
 
   const parsed = contractSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const invalid = validate(parsed.data);
   if (invalid) return invalid;

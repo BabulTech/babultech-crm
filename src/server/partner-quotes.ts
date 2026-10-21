@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { describeInvalid } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
 import { z } from "zod";
@@ -51,7 +52,7 @@ async function guarded<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionRes
 function invalid<T>(error: z.ZodError): ActionResult<T> {
   return {
     ok: false,
-    error: error.issues[0]?.message ?? "Please correct the highlighted fields.",
+    error: describeInvalid(error),
     fieldErrors: error.flatten().fieldErrors as Record<string, string[]>,
   };
 }

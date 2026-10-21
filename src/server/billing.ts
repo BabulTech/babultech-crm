@@ -1,6 +1,7 @@
 "use server";
 
 import { commercialPlanSchema } from "@/lib/product-plans";
+import { describeInvalid } from "@/lib/form-errors";
 import { withRateSnapshots } from "@/lib/rate-snapshots";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -138,7 +139,7 @@ export async function createInvoice(
 
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -203,7 +204,7 @@ export async function updateInvoice(
 
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -630,7 +631,7 @@ export async function recordPayment(
 
   const parsed = paymentSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 

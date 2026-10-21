@@ -304,7 +304,7 @@ export function TimesheetClient({
             <input
               type="checkbox"
               name="billable"
-              defaultChecked={entry?.billable ?? true}
+              defaultChecked={entry?.billable ?? false}
               className="h-4 w-4 rounded border-input"
             />
             Billable to the customer

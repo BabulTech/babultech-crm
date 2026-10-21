@@ -354,7 +354,7 @@ export function TaskBoard({
               <input
                 type="checkbox"
                 name="billable"
-                defaultChecked={task?.billable ?? true}
+                defaultChecked={task?.billable ?? false}
                 className="h-4 w-4 rounded border-input"
               />
               Billable

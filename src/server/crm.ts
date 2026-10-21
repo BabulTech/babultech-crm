@@ -1,6 +1,7 @@
 "use server";
 
 import { getProductOptions } from "./product-options";
+import { describeInvalid } from "@/lib/form-errors";
 import { optionKey } from "@/lib/product-options";
 import { randomUUID } from "node:crypto";
 import { withRateSnapshots } from "@/lib/rate-snapshots";
@@ -51,7 +52,7 @@ export async function createAccount(
 
   const parsed = accountSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
   try {
@@ -78,7 +79,7 @@ export async function updateAccount(
 
   const parsed = accountSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
   try {
@@ -262,7 +263,7 @@ export async function createContact(
 
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -318,7 +319,7 @@ export async function updateContact(
 
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -601,7 +602,7 @@ export async function createLead(
 
   const parsed = leadSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
   try {
@@ -670,7 +671,7 @@ export async function updateLead(
 
   const parsed = leadUpdateSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -756,7 +757,7 @@ export async function convertLead(
 
   const parsed = convertSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Please correct the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
 
@@ -1104,7 +1105,7 @@ export async function createCampaignType(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1153,7 +1154,7 @@ export async function createCampaign(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1220,7 +1221,7 @@ export async function createProduct(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1325,7 +1326,7 @@ export async function createActivity(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1408,7 +1409,7 @@ export async function updateCampaign(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1496,7 +1497,7 @@ export async function updateProduct(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -1586,7 +1587,7 @@ export async function updateActivity(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }

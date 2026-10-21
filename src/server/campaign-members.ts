@@ -1,6 +1,7 @@
 "use server";
 
 import { deleteToRecycleBin } from "./recycle-bin";
+import { describeInvalid } from "@/lib/form-errors";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -184,7 +185,7 @@ export async function saveCampaignMember(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "Please correct the highlighted fields.",
+      error: describeInvalid(parsed.error),
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
