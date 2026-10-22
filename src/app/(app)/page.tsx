@@ -19,7 +19,7 @@ import { ModuleSummary } from "./module-summary";
 import { PulseTile } from "./pulse-tile";
 import { LiveIndicator, LiveClock, PulseDot } from "@/components/live-indicator";
 import { ActivityStream } from "@/components/activity-stream";
-import { DashboardViews, type ViewKey } from "./dashboard-views";
+import { DashboardViews, DashboardViewTransition, DashboardViewBody, type ViewKey } from "./dashboard-views";
 import { DeliveryFiltersBar } from "./delivery-filters-bar";
 import { resolveRange } from "@/lib/date-range";
 import { SalesView } from "./views/sales-view";
@@ -502,7 +502,7 @@ export default async function DashboardPage({
     : "overview";
 
   return (
-    <>
+    <DashboardViewTransition>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <PageHeader
           title={`Good to see you, ${user.fullName.split(" ")[0]}`}
@@ -522,6 +522,7 @@ export default async function DashboardPage({
         </div>
       )}
 
+      <DashboardViewBody>
       {/* Below the view tabs rather than beside them: which part of the
           business you are looking at and over what period are two separate
           choices, and stacking them keeps either from crowding the other on a
@@ -864,6 +865,7 @@ export default async function DashboardPage({
       </div>
       </>
       )}
-    </>
+      </DashboardViewBody>
+    </DashboardViewTransition>
   );
 }

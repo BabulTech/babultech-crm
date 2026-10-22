@@ -1,7 +1,9 @@
 "use client";
 
+import { createContext, useContext, useTransition, type ReactNode, type TransitionStartFunction } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { PageSkeleton } from "@/components/page-skeleton";
 import type { ModuleKey } from "@/lib/chart-palette";
 import { MODULE_COLORS } from "@/lib/chart-palette";
 
@@ -37,6 +39,30 @@ export interface ViewOption {
  * same colour that module's marks use in every chart. Colour follows the entity,
  * so a reader learns "teal is finance" once.
  */
+/**
+ * A tab changes only the query string, which the route's loading.tsx does not
+ * cover - so without this the old view sat on screen, unchanged, until the new
+ * one arrived. The switch runs in a transition and the body below shows a
+ * skeleton for as long as it is pending.
+ */
+const ViewTransition = createContext<{ pending: boolean; start: TransitionStartFunction } | null>(null);
+
+export function DashboardViewTransition({ children }: { children: ReactNode }) {
+  const [pending, start] = useTransition();
+  return <ViewTransition.Provider value={{ pending, start }}>{children}</ViewTransition.Provider>;
+}
+
+export function DashboardViewBody({ children }: { children: ReactNode }) {
+  const pending = useContext(ViewTransition)?.pending ?? false;
+  if (!pending) return <>{children}</>;
+  return (
+    <div aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading view…</span>
+      <PageSkeleton />
+    </div>
+  );
+}
+
 export function DashboardViews({
   views,
   active,
@@ -47,6 +73,7 @@ export function DashboardViews({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const transition = useContext(ViewTransition);
 
   function select(key: ViewKey) {
     const next = new URLSearchParams(searchParams.toString());
@@ -56,7 +83,9 @@ export function DashboardViews({
     else next.set("view", key);
 
     const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const go = () => router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    if (transition) transition.start(go);
+    else go();
   }
 
   return (

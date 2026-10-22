@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import { signInWithCredentials } from "@/lib/auth";
 import { supabaseSession, supabaseAdmin } from "@/lib/supabase";
-import { Card, Field, Input, Alert } from "@/components/ui";
-import { PasswordInput } from "@/components/password-input";
-import { SignInButton } from "./sign-in-button";
+import { Card, Alert } from "@/components/ui";
+import { LoginForm } from "./login-form";
 
 export default async function LoginPage({
   searchParams,
@@ -48,7 +47,7 @@ export default async function LoginPage({
 
   const { error } = await searchParams;
 
-  async function login(formData: FormData) {
+  async function login(formData: FormData): Promise<{ start: string }> {
     "use server";
     const result = await signInWithCredentials(
       String(formData.get("email") ?? ""),
@@ -63,7 +62,9 @@ export default async function LoginPage({
     // the column refuses anything else, and it is checked again here. Read with
     // the account check in signInWithCredentials, not as a round trip after it.
     const start = result.startPage && /^\/[a-z0-9/_-]*$/.test(result.startPage) ? result.startPage : "/";
-    redirect(start);
+    // Returned, not redirected: the form navigates itself, so it can show the
+    // app's skeleton the moment the password is accepted.
+    return { start };
   }
 
   return (
@@ -107,15 +108,7 @@ export default async function LoginPage({
           </div>
         )}
 
-        <form action={login} className="space-y-4">
-          <Field label="Email" required>
-            <Input name="email" type="email" autoComplete="email" required placeholder="you@babultech.com" />
-          </Field>
-          <Field label="Password" required>
-            <PasswordInput required />
-          </Field>
-          <SignInButton />
-        </form>
+        <LoginForm action={login} />
       </Card>
     </div>
   );

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { supabaseAdmin, supabaseSession } from "./supabase";
 import { endViewAs } from "./view-as-session";
 
@@ -67,11 +68,14 @@ export async function signInWithCredentials(
     return { ok: false, reason: "inactive" };
   }
 
-  // Independent bookkeeping, so side by side rather than one after the other.
-  await Promise.all([
+  // Bookkeeping nobody is waiting for. Started now, while the request (and its
+  // headers, which the login event records) is still in scope, and finished
+  // after the response, so signing in does not wait a round trip for it.
+  const bookkeeping = Promise.all([
     adminDb.from("app_user").update({ lastLoginAt: new Date().toISOString() }).eq("id", profile.id),
     recordLoginEvent({ eventType: "SIGN_IN", userId: profile.id, email: normalizedEmail }),
   ]);
+  after(() => bookkeeping.then(() => undefined, () => undefined));
 
   const pref = (Array.isArray(profile.preference) ? profile.preference[0] : profile.preference) as { startPage: string | null } | null;
   return { ok: true, userId: profile.id, startPage: pref?.startPage ?? null };
