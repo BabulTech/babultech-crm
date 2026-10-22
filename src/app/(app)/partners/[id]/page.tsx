@@ -34,17 +34,18 @@ export default async function PartnerDetailPage({
 
   const { id } = await params;
 
-  const [notes, documents, portalPeople, thread, activities] = await Promise.all([
+  // One wave: every read takes only the id, so none waits on another.
+  const [notes, documents, portalPeople, thread, activities, partner, summary, audit] = await Promise.all([
     listNotes("Partner", id),
     listDocuments("Partner", id),
     listPartnerPortalAccess(id),
     getPartnerThread(id),
     listActivitiesFor("Partner", id),
+    getPartner(id),
+    getPartnerSummary(id),
+    getAuditTrail("Partner", id, 15),
   ]);
-  const [partner, summary] = await Promise.all([getPartner(id), getPartnerSummary(id)]);
   if (!partner) notFound();
-
-  const audit = await getAuditTrail("Partner", id, 15);
 
   const bank = (partner.bankDetails ?? {}) as Record<string, string | undefined>;
   const agreementExpired =

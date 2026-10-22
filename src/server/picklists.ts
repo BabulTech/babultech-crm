@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { z } from "zod";
-import { supabaseServer } from "@/lib/supabase";
+import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
 import { authorize, requireUser, PERMISSIONS } from "@/lib/authz";
 import type { Picklist, PicklistMap } from "@/lib/picklists";
 
@@ -14,24 +14,39 @@ type Result = { ok: true } | { ok: false; error: string };
  * One small query for the whole app, loaded in the layout. A failure returns an
  * empty map rather than throwing: the forms fall back to their built-in values,
  * which is better than a broken page.
+ *
+ * Cached across requests: the layout reads it on every navigation and it
+ * changes only when an administrator edits a list, which clears the tag below.
+ * Read with the service client because a cached function cannot see the
+ * request's cookies; the values are the same for every internal user, and the
+ * caller is still required to be signed in.
  */
+const PICKLIST_TAG = "picklists";
+
+const loadPicklistMap = unstable_cache(
+  async (): Promise<PicklistMap> => {
+    const { data, error } = await supabaseAdmin()
+      .from("picklist_value")
+      .select("picklistKey, value, label, sortOrder")
+      .eq("active", true)
+      .order("sortOrder")
+      .order("label");
+    // Thrown so a failed read is not cached as an empty map.
+    if (error) throw error;
+
+    const map: PicklistMap = {};
+    for (const row of data ?? []) {
+      (map[row.picklistKey] ??= []).push({ value: row.value, label: row.label });
+    }
+    return map;
+  },
+  ["picklist-map"],
+  { tags: [PICKLIST_TAG], revalidate: 300 },
+);
+
 export async function getPicklistMap(): Promise<PicklistMap> {
   await requireUser();
-  const db = await supabaseServer();
-  const { data, error } = await db
-    .from("picklist_value")
-    .select("picklistKey, value, label, sortOrder")
-    .eq("active", true)
-    .order("sortOrder")
-    .order("label");
-
-  if (error) return {};
-
-  const map: PicklistMap = {};
-  for (const row of data ?? []) {
-    (map[row.picklistKey] ??= []).push({ value: row.value, label: row.label });
-  }
-  return map;
+  return loadPicklistMap().catch(() => ({}));
 }
 
 /** Every list with every value, hidden ones included, for Settings. */

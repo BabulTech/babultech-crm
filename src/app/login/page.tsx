@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { signInWithCredentials } from "@/lib/auth";
 import { supabaseSession, supabaseAdmin } from "@/lib/supabase";
-import { Button, Card, Field, Input, Alert } from "@/components/ui";
+import { Card, Field, Input, Alert } from "@/components/ui";
 import { PasswordInput } from "@/components/password-input";
+import { SignInButton } from "./sign-in-button";
 
 export default async function LoginPage({
   searchParams,
@@ -59,13 +60,9 @@ export default async function LoginPage({
     if (!result.ok) redirect(`/login?error=${result.reason}`);
 
     // Their chosen start page, if they have one. Only a path inside the app:
-    // the column refuses anything else, and it is checked again here.
-    const { data: pref } = await supabaseAdmin()
-      .from("user_preference")
-      .select("startPage")
-      .eq("userId", result.userId)
-      .maybeSingle();
-    const start = pref?.startPage && /^\/[a-z0-9/_-]*$/.test(pref.startPage) ? pref.startPage : "/";
+    // the column refuses anything else, and it is checked again here. Read with
+    // the account check in signInWithCredentials, not as a round trip after it.
+    const start = result.startPage && /^\/[a-z0-9/_-]*$/.test(result.startPage) ? result.startPage : "/";
     redirect(start);
   }
 
@@ -117,9 +114,7 @@ export default async function LoginPage({
           <Field label="Password" required>
             <PasswordInput required />
           </Field>
-          <Button type="submit" className="w-full">
-            Sign in
-          </Button>
+          <SignInButton />
         </form>
       </Card>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, ShieldCheck } from "lucide-react";
@@ -226,7 +227,7 @@ export function UserForm({
               hint="At least 10 characters, mixed case, with a number."
             help="A temporary password. They are also emailed a link to choose their own."
             >
-              <Input name="password" type="password" required autoComplete="new-password" />
+              <PasswordInput name="password" required autoComplete="new-password" />
             </Field>
           )}
         </CardContent>

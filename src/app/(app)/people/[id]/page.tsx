@@ -16,10 +16,13 @@ import { LoginPanel } from "./login-panel";
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireUser();
   const { id } = await params;
-  const data = await getPerson(id);
+  const [data, documents, reportingLine] = await Promise.all([
+    getPerson(id),
+    listDocuments("StaffProfile", id),
+    getReportingLine(id),
+  ]);
   if (!data) notFound();
   const { staff, contracts, canWrite, canCreateLogins } = data;
-  const [documents, reportingLine] = await Promise.all([listDocuments("StaffProfile", id), getReportingLine(id)]);
   const canDeleteContracts = can(me, PERMISSIONS.RECORD_DELETE);
 
   const running = contracts.find((c) => c.status === "ACTIVE");

@@ -37,6 +37,22 @@ export function timeAgo(iso: string): string {
   return asUtc(iso).toLocaleDateString("en-PK", { day: "numeric", month: "short" });
 }
 
+/**
+ * The shell renders a bell for each layout (phone, rail, desktop), and each one
+ * refreshes on every navigation. They share one request instead of each making
+ * their own.
+ */
+let inflightBell: Promise<{ unread: number; items: NotificationItem[] } | null> | null = null;
+
+function fetchBell() {
+  inflightBell ??= fetch("/api/notifications/bell", { cache: "no-store" })
+    .then((res) => (res.ok ? (res.json() as Promise<{ unread: number; items: NotificationItem[] }>) : null))
+    .finally(() => {
+      inflightBell = null;
+    });
+  return inflightBell;
+}
+
 export function NotificationBell({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -49,9 +65,8 @@ export function NotificationBell({ className }: { className?: string }) {
     if (busy.current) return;
     busy.current = true;
     try {
-      const res = await fetch("/api/notifications/bell", { cache: "no-store" });
-      if (!res.ok) return;
-      const next = (await res.json()) as { unread: number; items: NotificationItem[] };
+      const next = await fetchBell();
+      if (!next) return;
       setUnread(next.unread);
       setItems(next.items);
     } catch {

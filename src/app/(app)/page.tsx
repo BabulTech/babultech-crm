@@ -87,8 +87,10 @@ export default async function DashboardPage({
   // receivable belongs to the company, not to a rep. invoice:read is the whole
   // of its access control, which is why the finance figures are gated on
   // seeFinance rather than narrowed by row.
-  const caseScope = await scopeFilter(user, "ownerUserId");
-  const projectScope = await scopeFilter(user, "projectManagerId");
+  const [caseScope, projectScope] = await Promise.all([
+    scopeFilter(user, "ownerUserId"),
+    scopeFilter(user, "projectManagerId"),
+  ]);
 
   const [
     pipeline, commissions, openCases, activeProjects, overdueInvoices, topPartners, myActivities,
@@ -236,14 +238,18 @@ export default async function DashboardPage({
       // The four module analytics. Each returns empty for a reader without the
       // matching permission rather than throwing, so one missing permission
       // cannot take the whole dashboard down.
-      seeSales ? getSalesAnalytics() : Promise.resolve(null),
-      seeFinance ? getFinanceAnalytics() : Promise.resolve(null),
-      seeCases ? getServiceAnalytics() : Promise.resolve(null),
-      seePartners ? getPartnerAnalytics() : Promise.resolve(null),
+      //
+      // Only the open tab's analytics are loaded: each one is a page's worth of
+      // queries, and loading all five for the overview, which shows none of
+      // them, made the dashboard the slowest screen in the app.
+      seeSales && rangeParams.view === "sales" ? getSalesAnalytics() : Promise.resolve(null),
+      seeFinance && rangeParams.view === "finance" ? getFinanceAnalytics() : Promise.resolve(null),
+      seeCases && rangeParams.view === "service" ? getServiceAnalytics() : Promise.resolve(null),
+      seePartners && rangeParams.view === "partners" ? getPartnerAnalytics() : Promise.resolve(null),
       // Null rather than a hand-written empty shape: the empty object had to be
       // updated every time the analytics gained a field, and forgetting was a
       // type error at best and a wrong zero at worst.
-      seeProjects ? getDeliveryAnalytics(range, rangeParams) : Promise.resolve(null),
+      seeProjects && rangeParams.view === "delivery" ? getDeliveryAnalytics(range, rangeParams) : Promise.resolve(null),
     ]);
 
   const openStages = pipeline.filter(

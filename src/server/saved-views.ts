@@ -53,16 +53,8 @@ export async function listSavedViews(entity: ListName): Promise<SavedView[]> {
 export async function applyDefaultView(entity: ListName, params: Record<string, unknown>): Promise<void> {
   if (Object.values(params).some((v) => v !== undefined && v !== "")) return;
   if (await getViewAs()) return;
-  const user = await requireUser();
-  const db = await supabaseServer();
-  const { data } = await db
-    .from("saved_view")
-    .select("query")
-    .eq("entity", entity)
-    .eq("userId", user.id)
-    .eq("isDefault", true)
-    .maybeSingle();
-  const query = (data?.query as string | undefined)?.trim();
+  // Read with the profile in requireUser(), so this costs no round trip.
+  const query = (await requireUser()).defaultViews?.[entity];
   if (query) redirect(`/${entity}?${query}`);
 }
 

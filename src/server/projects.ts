@@ -388,6 +388,18 @@ export async function getProject(id: string) {
 
   const db = await supabaseServer();
 
+  // Hours booked per task, for sold-versus-used. Rejected time is left out: it
+  // was sent back, so it neither used the budget nor gets billed. Needs only
+  // the id, so it runs alongside the project read rather than after it.
+  const loggedRead = db
+    .from("time_log")
+    .select("projectTaskId, hours")
+    .eq("projectId", id)
+    .not("projectTaskId", "is", null)
+    .neq("approvalStatus", "REJECTED")
+    // A query builder sends nothing until it is awaited; .then() sends it now.
+    .then((result) => result);
+
   const { data, error } = await db
     .from("project")
     .select(
@@ -437,14 +449,7 @@ export async function getProject(id: string) {
   // task's own columns, so they are derived from the task list itself.
   const taskRows = rows(data.tasks);
 
-  // Hours booked per task, for sold-versus-used. Rejected time is left out: it
-  // was sent back, so it neither used the budget nor gets billed.
-  const { data: logged } = await db
-    .from("time_log")
-    .select("projectTaskId, hours")
-    .eq("projectId", id)
-    .not("projectTaskId", "is", null)
-    .neq("approvalStatus", "REJECTED");
+  const { data: logged } = await loggedRead;
   const loggedByTask = new Map<string, number>();
   for (const l of logged ?? []) {
     const key = l.projectTaskId as string;

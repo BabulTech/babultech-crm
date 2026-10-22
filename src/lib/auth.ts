@@ -20,7 +20,7 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
-export type SignInResult = { ok: true; userId: string } | { ok: false; reason: string };
+export type SignInResult = { ok: true; userId: string; startPage: string | null } | { ok: false; reason: string };
 
 /**
  * Verifies credentials and starts a session.
@@ -56,7 +56,7 @@ export async function signInWithCredentials(
   const adminDb = supabaseAdmin();
   const { data: profile } = await adminDb
     .from("app_user")
-    .select("id, status, deletedAt")
+    .select("id, status, deletedAt, preference:user_preference ( startPage )")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -67,13 +67,14 @@ export async function signInWithCredentials(
     return { ok: false, reason: "inactive" };
   }
 
-  await adminDb
-    .from("app_user")
-    .update({ lastLoginAt: new Date().toISOString() })
-    .eq("id", profile.id);
-  await recordLoginEvent({ eventType: "SIGN_IN", userId: profile.id, email: normalizedEmail });
+  // Independent bookkeeping, so side by side rather than one after the other.
+  await Promise.all([
+    adminDb.from("app_user").update({ lastLoginAt: new Date().toISOString() }).eq("id", profile.id),
+    recordLoginEvent({ eventType: "SIGN_IN", userId: profile.id, email: normalizedEmail }),
+  ]);
 
-  return { ok: true, userId: profile.id };
+  const pref = (Array.isArray(profile.preference) ? profile.preference[0] : profile.preference) as { startPage: string | null } | null;
+  return { ok: true, userId: profile.id, startPage: pref?.startPage ?? null };
 }
 
 /** Ends the Supabase session, and any View as it had open. */

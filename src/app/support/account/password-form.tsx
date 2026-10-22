@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useState, useTransition } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { changeOwnPassword } from "@/server/users";
@@ -38,13 +39,13 @@ export function PasswordForm() {
       {done && <Alert tone="success">Your password has been changed. Use it next time you sign in.</Alert>}
 
       <Field label="Current password" required help="The one we emailed you, or the one you set last time.">
-        <Input name="currentPassword" type="password" required autoComplete="current-password" />
+        <PasswordInput name="currentPassword" required autoComplete="current-password" />
       </Field>
       <Field label="New password" required>
-        <Input name="newPassword" type="password" required autoComplete="new-password" />
+        <PasswordInput name="newPassword" required autoComplete="new-password" />
       </Field>
       <Field label="New password again" required>
-        <Input name="confirm" type="password" required autoComplete="new-password" />
+        <PasswordInput name="confirm" required autoComplete="new-password" />
       </Field>
 
       <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Change password"}</Button>

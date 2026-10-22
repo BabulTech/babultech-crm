@@ -25,17 +25,18 @@ export default async function CampaignsPage({
 
   const params = await searchParams;
   await applyDefaultView("campaigns", params);
-  const campaigns = await listCampaigns(params);
-
   // ROI comes from the v_campaign_performance view (20261004000000). A failed
-  // read leaves the campaign list working and says so above the table.
-  let performance: Awaited<ReturnType<typeof getCampaignPerformance>> = [];
+  // read leaves the campaign list working and says so above the table. Read
+  // alongside the list rather than after it.
   let viewMissing = false;
-  try {
-    performance = await getCampaignPerformance();
-  } catch {
-    viewMissing = true;
-  }
+  // eslint-disable-next-line prefer-const -- narrowed below
+  let [campaigns, performance] = await Promise.all([
+    listCampaigns(params),
+    getCampaignPerformance().catch((): Awaited<ReturnType<typeof getCampaignPerformance>> => {
+      viewMissing = true;
+      return [];
+    }),
+  ]);
 
   // The view is read whole rather than filtered, so it has to be narrowed to
   // the same campaigns the list above is showing — otherwise a search hides

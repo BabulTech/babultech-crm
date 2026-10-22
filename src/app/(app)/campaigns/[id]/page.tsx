@@ -29,9 +29,13 @@ export default async function CampaignDetailPage({
   // Grouped through the LEADS rather than off a send, because one email may go
   // to leads from several campaigns and each lead already records the campaign
   // that produced it. This gives this campaign only its own share.
-  const emailStats = await getCampaignEmailStats(id);
-
-  const { data: campaignRow } = await db
+  //
+  // All three reads take only the id, so they run together. PostgREST cannot
+  // embed the reverse side of a self-referencing FK, so the child campaigns are
+  // their own query.
+  const [emailStats, { data: campaignRow }, { data: childCampaigns }] = await Promise.all([
+    getCampaignEmailStats(id),
+    db
     .from("campaign")
     .select(
       `*,
@@ -43,17 +47,12 @@ export default async function CampaignDetailPage({
        members:campaign_member!campaign_member_campaignId_fkey ( count )`,
     )
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle(),
+    db.from("campaign").select("id, name, status").eq("parentCampaignId", id),
+  ]);
 
   type Row = Record<string, unknown>;
   const desc = (a: unknown, b: unknown) => String(b ?? "").localeCompare(String(a ?? ""));
-
-  // PostgREST cannot embed the reverse side of a self-referencing FK, so the
-  // child campaigns are a second query.
-  const { data: childCampaigns } = await db
-    .from("campaign")
-    .select("id, name, status")
-    .eq("parentCampaignId", id);
 
   const campaign = campaignRow
     ? {

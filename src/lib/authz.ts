@@ -65,6 +65,8 @@ export interface SessionUser {
   portalRole: "ADMIN" | "USER";
   /** Their own preferences (user_preference). Optional so test fixtures can leave it out. */
   preferences?: { timeZone: string | null; dateFormat: DateFormat; startPage: string | null };
+  /** Their default saved view per list, as the list's query string. Read with the profile. */
+  defaultViews?: Record<string, string>;
 }
 
 export class AuthorizationError extends Error {
@@ -138,6 +140,16 @@ async function loadUser(): Promise<SessionUser> {
   // applies.
   const profileDb = supabaseAdmin();
 
+  // Default list views ride along with the profile, so a list page does not
+  // spend its own round trip on them before fetching rows. A failure here only
+  // means no default view is applied.
+  const defaultViewsRead = profileDb
+    .from("saved_view")
+    .select("entity, query")
+    .eq("userId", userId)
+    .eq("isDefault", true)
+    .then(({ data }) => data ?? [], () => []);
+
   const { data: user, error } = await profileDb
     .from("app_user")
     .select(
@@ -153,6 +165,12 @@ async function loadUser(): Promise<SessionUser> {
 
   if (error || !user || user.status !== "ACTIVE" || user.deletedAt) {
     throw new AuthorizationError("Account is not active.");
+  }
+
+  const defaultViews: Record<string, string> = {};
+  for (const v of await defaultViewsRead) {
+    const query = String(v.query ?? "").trim();
+    if (query) defaultViews[String(v.entity)] = query;
   }
 
   // PostgREST returns an embedded to-one relation as an object, but the
@@ -189,6 +207,7 @@ async function loadUser(): Promise<SessionUser> {
       dateFormat: (["DMY", "MDY", "YMD"].includes(pref?.dateFormat ?? "") ? pref!.dateFormat : "DMY") as DateFormat,
       startPage: pref?.startPage ?? null,
     },
+    defaultViews,
   };
 }
 
@@ -302,15 +321,38 @@ export async function scopeFilter(
   client?: SupabaseLike,
 ): Promise<Record<string, unknown>> {
   if (user.dataScope === "ALL") return {};
+  if (user.dataScope === "OWN") return { [ownerField]: user.id };
+  if (user.dataScope === "TEAM" && user.teamIds.length === 0) return { [ownerField]: user.id };
 
   // The client is injectable so this stays testable: supabaseServer() reads
   // cookies(), which only exists inside a request. Tests and background jobs
-  // pass their own client instead.
+  // pass their own client instead, and skip the per-request cache with it.
+  const ids = client
+    ? await loadVisibleOwnerIds(user.id, user.dataScope, user.teamIds.join(","), client)
+    : await visibleOwnerIdsForRequest(user.id, user.dataScope, user.teamIds.join(","));
+  return { [ownerField]: { in: ids } };
+}
+
+/**
+ * The owner ids a TEAM or DEPARTMENT user may see, read once per request: a
+ * dashboard or a list page scopes several queries, and each used to read the
+ * whole staff table again. Keyed on primitives so React's cache() matches.
+ */
+const visibleOwnerIdsForRequest = cache((userId: string, scope: DataScope, teamIds: string) =>
   // Same RLS consideration as requireUser: without a Supabase JWT the anon
   // client cannot read app_user/team_member. Service role for the lookup.
-  const db = client ?? supabaseAdmin();
+  loadVisibleOwnerIds(userId, scope, teamIds, supabaseAdmin()),
+);
 
-  if (user.dataScope === "DEPARTMENT") {
+async function loadVisibleOwnerIds(
+  userId: string,
+  scope: DataScope,
+  teamIdList: string,
+  db: SupabaseLike,
+): Promise<string[]> {
+  const user = { id: userId, teamIds: teamIdList ? teamIdList.split(",") : [] };
+
+  if (scope === "DEPARTMENT") {
     // Follows the reporting line, not the department roster: self, direct
     // reports, and everyone beneath them. Authority flows down the org chart,
     // so peers cannot see each other and nobody sees their own manager.
@@ -345,23 +387,16 @@ export async function scopeFilter(
       }
     }
 
-    return { [ownerField]: { in: [...visible] } };
+    return [...visible];
   }
 
-  if (user.dataScope === "TEAM") {
-    if (user.teamIds.length === 0) return { [ownerField]: user.id };
-    const { data: teammates } = await db
-      .from("team_member")
-      .select("userId")
-      .in("teamId", user.teamIds);
-    const ids = Array.from(
-      new Set([user.id, ...(teammates ?? []).map((t) => t.userId)]),
-    );
-    return { [ownerField]: { in: ids } };
-  }
-
-  // OWN
-  return { [ownerField]: user.id };
+  // TEAM
+  if (user.teamIds.length === 0) return [user.id];
+  const { data: teammates } = await db
+    .from("team_member")
+    .select("userId")
+    .in("teamId", user.teamIds);
+  return Array.from(new Set([user.id, ...(teammates ?? []).map((t) => t.userId)]));
 }
 
 /** Convenience wrapper: fetch the session and its scope filter in one call. */

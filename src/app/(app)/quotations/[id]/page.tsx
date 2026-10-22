@@ -33,19 +33,19 @@ export default async function QuotationDetailPage({
 }) {
   const { id } = await params;
 
-  const [notes, documents, emails, emailConfigured, audit, ruleReason] = await Promise.all([
+  const _me = await requireUser();
+  if (!can(_me, PERMISSIONS.OPPORTUNITY_READ)) return <Forbidden what="quotations" />;
+  const db = await supabaseServer();
+
+  // The quote itself is read in the same wave as everything around it.
+  const [notes, documents, emails, emailConfigured, audit, ruleReason, { data: quoteRow }] = await Promise.all([
     listNotes("Quotation", id),
     listDocuments("Quotation", id),
     listEmails("Quotation", id),
     isEmailConfigured(),
     getAuditTrail("Quotation", id, 15),
     getQuoteApprovalReason(id).catch(() => null),
-  ]);
-  const _me = await requireUser();
-  if (!can(_me, PERMISSIONS.OPPORTUNITY_READ)) return <Forbidden what="quotations" />;
-  const db = await supabaseServer();
-
-  const { data: quoteRow } = await db
+    db
     .from("quotation")
     .select(
       `*,
@@ -64,7 +64,8 @@ export default async function QuotationDetailPage({
        approvalDecidedBy:app_user!quotation_approvalDecidedById_fkey ( fullName )`,
     )
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle(),
+  ]);
 
   if (!quoteRow) notFound();
 

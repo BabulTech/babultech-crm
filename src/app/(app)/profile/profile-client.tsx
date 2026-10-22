@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useState, useTransition } from "react";
 import { changeOwnPassword } from "@/server/users";
 import { Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Alert } from "@/components/ui";
@@ -39,13 +40,13 @@ export function ChangePasswordForm() {
           {notice && <Alert tone="success">{notice}</Alert>}
 
           <Field label="Current password">
-            <Input name="currentPassword" type="password" required autoComplete="current-password" />
+            <PasswordInput name="currentPassword" required autoComplete="current-password" />
           </Field>
           <Field label="New password" hint="At least 10 characters, mixed case, with a number.">
-            <Input name="newPassword" type="password" required autoComplete="new-password" />
+            <PasswordInput name="newPassword" required autoComplete="new-password" />
           </Field>
           <Field label="Confirm new password">
-            <Input name="confirm" type="password" required autoComplete="new-password" />
+            <PasswordInput name="confirm" required autoComplete="new-password" />
           </Field>
           <Button type="submit" disabled={pending}>
             {pending ? "Changing…" : "Change password"}

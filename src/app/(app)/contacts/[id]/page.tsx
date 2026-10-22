@@ -38,14 +38,14 @@ export default async function ContactDetailPage({
 
   const { id } = await params;
 
-  const [notes, documents, portalAccess, activities, audit] = await Promise.all([
+  const [notes, documents, portalAccess, activities, audit, contact] = await Promise.all([
     listNotes("Contact", id),
     listDocuments("Contact", id),
     getPortalAccess(id),
     listActivitiesFor("Contact", id),
     getAuditTrail("Contact", id, 15),
+    getContact(id),
   ]);
-  const contact = await getContact(id);
   if (!contact) notFound();
   const relationship = await getContactRelationship(id, contact.account?.id ?? null);
 

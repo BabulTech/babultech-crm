@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, ShieldCheck } from "lucide-react";
@@ -150,7 +151,7 @@ export function PartnerPortalPanel({
                         required
                         help="At least 12 characters. We email it to them; it is not shown again here."
                       >
-                        <Input name="password" type="text" minLength={12} required autoComplete="new-password" />
+                        <PasswordInput name="password" minLength={12} required autoComplete="new-password" />
                       </Field>
                       <div className="mt-3 flex gap-2">
                         <Button type="submit" size="sm" disabled={pending}>

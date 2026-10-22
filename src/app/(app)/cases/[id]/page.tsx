@@ -32,15 +32,14 @@ export default async function CaseDetailPage({
 
   const { id } = await params;
 
-  const [notes, documents, thread] = await Promise.all([
+  const [notes, documents, thread, c, audit] = await Promise.all([
     listNotes("SupportCase", id),
     listDocuments("SupportCase", id),
     getCaseThread(id),
+    getCase(id),
+    getAuditTrail("Case", id, 15),
   ]);
-  const c = await getCase(id);
   if (!c) notFound();
-
-  const audit = await getAuditTrail("Case", id, 15);
   const now = new Date();
   const responseLate = c.firstResponseDueAt && !c.firstRespondedAt && c.firstResponseDueAt < now;
   const resolutionLate = c.resolutionDueAt && !c.resolvedAt && c.resolutionDueAt < now;

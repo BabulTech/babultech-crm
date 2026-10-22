@@ -45,7 +45,17 @@ export default async function InvoicesPage({
   if (params.status) query = query.eq("status", params.status);
   query = applySearch(query, params.search, ["invoiceNumber"]);
 
-  const { data: invoiceRows } = await query.limit(LIST_LIMIT);
+  // The billing run's project list needs nothing from the invoices, so both
+  // reads go together. Projects it can act on: anything live with work to bill.
+  const [{ data: invoiceRows }, { data: billableProjectRows }] = await Promise.all([
+    query.limit(LIST_LIMIT),
+    db
+      .from("project")
+      .select("id, name, projectNumber")
+      .is("deletedAt", null)
+      .in("status", ["PLANNING", "ACTIVE", "AT_RISK", "COMPLETED"])
+      .order("name"),
+  ]);
 
   const invoices = (invoiceRows ?? []).map((i) => ({
     ...i,
@@ -55,14 +65,6 @@ export default async function InvoicesPage({
       allocations: (i.allocations as { count: number }[] | undefined)?.[0]?.count ?? 0,
     },
   }));
-
-  // Projects the billing run can act on — anything live with work to bill.
-  const { data: billableProjectRows } = await db
-    .from("project")
-    .select("id, name, projectNumber")
-    .is("deletedAt", null)
-    .in("status", ["PLANNING", "ACTIVE", "AT_RISK", "COMPLETED"])
-    .order("name");
 
   const billableProjects = billableProjectRows ?? [];
 

@@ -24,12 +24,12 @@ export default async function PartnersPage({
   if (!can(_me, PERMISSIONS.PARTNER_READ)) return <Forbidden what="partners" />;
 
   const params = await searchParams;
-  const partners = await listPartners(params);
-
   const db = await supabaseServer();
 
-  // PostgREST has neither groupBy nor aggregate, so both are computed here.
-  const [kindRes, payableRes] = await Promise.all([
+  // One wave: the list and the three summaries need nothing from each other.
+  // PostgREST has neither groupBy nor aggregate, so the sums are computed here.
+  const [partners, kindRes, payableRes, { data: sourcedRows }] = await Promise.all([
+    listPartners(params),
     db
       .from("partner")
       .select("kind")
@@ -41,6 +41,12 @@ export default async function PartnersPage({
       .select("partnerAmount, opportunity!inner ( stage )")
       .eq("status", "IN_PROGRESS")
       .eq("opportunity.stage", "CLOSED_WON"),
+    // Deals credited to a partner, still open.
+    db
+      .from("opportunity")
+      .select("amount, stage")
+      .not("sourcePartnerId", "is", null)
+      .is("deletedAt", null),
   ]);
 
   const kinds = kindRes.data ?? [];
@@ -55,13 +61,6 @@ export default async function PartnersPage({
       ),
     },
   };
-
-  // Deals credited to a partner, still open.
-  const { data: sourcedRows } = await db
-    .from("opportunity")
-    .select("amount, stage")
-    .not("sourcePartnerId", "is", null)
-    .is("deletedAt", null);
 
   const openSourced = (sourcedRows ?? [])
     .filter((d) => !["CLOSED_WON", "CLOSED_LOST"].includes(d.stage as string))

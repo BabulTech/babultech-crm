@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, ShieldCheck } from "lucide-react";
@@ -134,7 +135,7 @@ export function PortalAccessPanel({
             {canManage && (resetting ? (
               <form onSubmit={onReset} className="space-y-3 rounded-md border border-dashed p-3">
                 <Field label="New password" required help="At least 12 characters. We email it to them.">
-                  <Input name="password" type="text" minLength={12} required autoComplete="new-password" />
+                  <PasswordInput name="password" minLength={12} required autoComplete="new-password" />
                 </Field>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={pending}>{pending ? "Sending…" : "Set and email it"}</Button>
@@ -158,7 +159,7 @@ export function PortalAccessPanel({
               They will sign in with <span className="font-medium text-foreground">{contactEmail}</span>.
             </p>
             <Field label="Temporary password" required help="At least 12 characters. We email it to them; it is not shown again here.">
-              <Input name="password" type="text" minLength={12} required autoComplete="new-password" placeholder="e.g. autumn-kettle-97-rain" />
+              <PasswordInput name="password" minLength={12} required autoComplete="new-password" placeholder="e.g. autumn-kettle-97-rain" />
             </Field>
             <Field label="Which tickets they see">
               <Select name="portalScope" defaultValue="ACCOUNT">

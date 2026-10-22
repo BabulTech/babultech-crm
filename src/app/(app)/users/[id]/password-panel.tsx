@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/password-input";
 import { useState, useTransition } from "react";
 import { setUserPassword } from "@/server/users";
 import { sendPasswordLink } from "@/server/password-links";
@@ -96,10 +97,10 @@ export function PasswordPanel({ userId, fullName, email, latestLink }: { userId:
         {open ? (
           <form action={submit} className="space-y-3 border-t pt-3">
             <Field label="New password" hint="At least 10 characters, mixed case, with a number.">
-              <Input name="password" type="password" required autoComplete="new-password" />
+              <PasswordInput name="password" required autoComplete="new-password" />
             </Field>
             <Field label="Confirm">
-              <Input name="confirm" type="password" required autoComplete="new-password" />
+              <PasswordInput name="confirm" required autoComplete="new-password" />
             </Field>
             <div className="flex gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>

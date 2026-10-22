@@ -3,37 +3,32 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 /**
- * Password field with a reveal toggle.
+ * Password field with a reveal toggle. Used for every password the app asks
+ * for, so the toggle behaves the same everywhere.
  *
  * The button is type="button" so it never submits the form it sits in, and it
- * is aria-hidden from the tab order's point of view only in the sense that it
  * carries an explicit label — screen readers announce the action, and the
  * pressed state tells them which way it is currently set.
  */
 export function PasswordInput({
   name = "password",
   autoComplete = "current-password",
-  required,
-  placeholder,
-}: {
-  name?: string;
-  autoComplete?: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
+  className,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
   const [visible, setVisible] = useState(false);
 
   return (
     <div className="relative">
       <Input
+        {...props}
         name={name}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
-        required={required}
-        placeholder={placeholder}
-        className="pr-9"
+        className={cn("pr-9", className)}
       />
       <button
         type="button"
