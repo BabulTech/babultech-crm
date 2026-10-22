@@ -133,6 +133,25 @@ export async function getModuleSummary(): Promise<ModuleSummary> {
   const soon = daysFromNow(14);
   const agreementHorizon = daysFromNow(60);
 
+  const visible = { sales: seeSales, finance: seeFinance, delivery: seeProjects, service: seeCases, partners: seePartners };
+
+  // One round trip: app_dashboard_summary (20261023000000) computes every
+  // figure below in a single statement, under the reader's own row security.
+  // Until that migration is applied the call fails, and the separate queries
+  // further down still answer.
+  const { data: summary, error: summaryError } = await db.rpc("app_dashboard_summary", {
+    p_see_sales: seeSales,
+    p_see_projects: seeProjects,
+    p_see_finance: seeFinance,
+    p_see_cases: seeCases,
+    p_see_partners: seePartners,
+    p_month_start: monthStart,
+    p_today: now,
+    p_soon: soon,
+    p_agreement_horizon: agreementHorizon,
+  });
+  if (!summaryError && summary) return fromSummaryRow(summary, visible);
+
   const nil = { count: null } as const;
   const skip = async () => nil;
 
@@ -306,6 +325,52 @@ export async function getModuleSummary(): Promise<ModuleSummary> {
       commissionPayable: sum(payableRows, "partnerAmount"),
       commissionPendingApproval: n(pendingApproval),
       agreementsExpiringSoon: n(expiringAgreements),
+    },
+  };
+}
+
+/** Shapes app_dashboard_summary's row like the separate queries' result: counts as numbers, money to two places. */
+function fromSummaryRow(row: Record<string, Record<string, unknown>>, visible: ModuleSummary["visible"]): ModuleSummary {
+  const n = (section: string, key: string) => Number(row[section]?.[key] ?? 0);
+  const money = (section: string, key: string) => toDecimal(String(row[section]?.[key] ?? 0)).toFixed(2);
+  return {
+    visible,
+    sales: {
+      openDeals: n("sales", "openDeals"),
+      openValue: money("sales", "openValue"),
+      wonThisMonth: n("sales", "wonThisMonth"),
+      wonValueThisMonth: money("sales", "wonValueThisMonth"),
+      newLeads: n("sales", "newLeads"),
+      leadsToFollowUp: n("sales", "leadsToFollowUp"),
+      quotesAwaitingReply: n("sales", "quotesAwaitingReply"),
+      quoteValueOut: money("sales", "quoteValueOut"),
+    },
+    delivery: {
+      activeProjects: n("delivery", "activeProjects"),
+      atRiskProjects: n("delivery", "atRiskProjects"),
+      milestonesDueSoon: n("delivery", "milestonesDueSoon"),
+      overdueTasks: n("delivery", "overdueTasks"),
+      hoursAwaitingApproval: money("delivery", "hoursAwaitingApproval"),
+    },
+    finance: {
+      outstanding: money("finance", "outstanding"),
+      overdue: money("finance", "overdue"),
+      overdueCount: n("finance", "overdueCount"),
+      collectedThisMonth: money("finance", "collectedThisMonth"),
+      unallocatedPayments: money("finance", "unallocatedPayments"),
+      draftInvoices: n("finance", "draftInvoices"),
+    },
+    service: {
+      openCases: n("service", "openCases"),
+      criticalCases: n("service", "criticalCases"),
+      breachedSla: n("service", "breachedSla"),
+      unassignedCases: n("service", "unassignedCases"),
+    },
+    partners: {
+      activePartners: n("partners", "activePartners"),
+      commissionPayable: money("partners", "commissionPayable"),
+      commissionPendingApproval: n("partners", "commissionPendingApproval"),
+      agreementsExpiringSoon: n("partners", "agreementsExpiringSoon"),
     },
   };
 }
