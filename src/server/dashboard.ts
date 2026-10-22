@@ -150,8 +150,7 @@ export async function getModuleSummary(): Promise<ModuleSummary> {
     p_soon: soon,
     p_agreement_horizon: agreementHorizon,
   });
-  // TEMPORARY: `source` tells the ?timing=1 readout which path answered.
-  if (!summaryError && summary) return { ...fromSummaryRow(summary, visible), source: "rpc" } as ModuleSummary;
+  if (!summaryError && summary) return fromSummaryRow(summary, visible);
 
   const nil = { count: null } as const;
   const skip = async () => nil;
