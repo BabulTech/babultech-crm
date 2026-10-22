@@ -47,24 +47,24 @@ export default async function LoginPage({
 
   const { error } = await searchParams;
 
-  async function login(formData: FormData): Promise<{ start: string }> {
+  async function login(formData: FormData): Promise<{ error: string }> {
     "use server";
     const result = await signInWithCredentials(
       String(formData.get("email") ?? ""),
       String(formData.get("password") ?? ""),
     );
 
-    // redirect() throws, so it must sit outside any try/catch that would
-    // swallow the control-flow exception.
-    if (!result.ok) redirect(`/login?error=${result.reason}`);
+    // Refusals come back as a value, so the form can show them in place.
+    if (!result.ok) return { error: result.reason };
 
     // Their chosen start page, if they have one. Only a path inside the app:
     // the column refuses anything else, and it is checked again here. Read with
     // the account check in signInWithCredentials, not as a round trip after it.
     const start = result.startPage && /^\/[a-z0-9/_-]*$/.test(result.startPage) ? result.startPage : "/";
-    // Returned, not redirected: the form navigates itself, so it can show the
-    // app's skeleton the moment the password is accepted.
-    return { start };
+    // redirect() throws, so it must sit outside any try/catch that would
+    // swallow the control-flow exception. Redirecting from the action sends
+    // the first page in this same response, rather than a second round trip.
+    redirect(start);
   }
 
   return (
@@ -98,17 +98,8 @@ export default async function LoginPage({
           </div>
         )}
 
-        {error && (
-          <div className="mb-4">
-            <Alert tone="danger">
-              {error === "inactive"
-                ? "That account is not active. Contact an administrator."
-                : "That email and password combination did not work."}
-            </Alert>
-          </div>
-        )}
 
-        <LoginForm action={login} />
+        <LoginForm action={login} initialError={error ?? null} />
       </Card>
     </div>
   );
