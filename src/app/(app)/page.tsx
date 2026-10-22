@@ -55,6 +55,7 @@ export default async function DashboardPage({
     project?: string;
     projectStatus?: string;
     health?: string;
+    timing?: string;
   }>;
 }) {
   const user = await requireUser();
@@ -87,6 +88,9 @@ export default async function DashboardPage({
   // receivable belongs to the company, not to a rep. invoice:read is the whole
   // of its access control, which is why the finance figures are gated on
   // seeFinance rather than narrowed by row.
+  // TEMPORARY: per-call timings for an admin who adds ?timing=1.
+  const timings: number[] = [];
+  const pageStart = Date.now();
   const [caseScope, projectScope] = await Promise.all([
     scopeFilter(user, "ownerUserId"),
     scopeFilter(user, "projectManagerId"),
@@ -97,7 +101,7 @@ export default async function DashboardPage({
     summary, attentionData, payables, approvals, pulse, recentChanges, auditTypes,
     salesAnalytics, financeAnalytics, serviceAnalytics, partnerAnalytics, deliveryAnalytics,
   ] =
-    await Promise.all([
+    await timedAll(timings, [
       // Each of these throws for a role without the matching permission, so the
       // gate has to be here as well as in the layout — an ungated call would
       // take the whole page down rather than omit one card.
@@ -503,6 +507,19 @@ export default async function DashboardPage({
 
   return (
     <DashboardViewTransition>
+      {rangeParams.timing === "1" && can(user, PERMISSIONS.ADMIN) && (
+        <pre data-timing className="mb-4 rounded border p-2 text-xs">
+          {JSON.stringify({
+            total: Date.now() - pageStart,
+            summarySource: (summary as { source?: string }).source ?? "queries",
+            calls: [
+              "pipeline", "commissions", "openCases", "activeProjects", "overdueInvoices", "topPartners", "myActivities",
+              "summary", "attention", "payables", "approvals", "pulse", "recentChanges", "auditTypes",
+              "sales", "finance", "service", "partners", "delivery",
+            ].map((name, i) => `${name}:${timings[i]}`),
+          })}
+        </pre>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <PageHeader
           title={`Good to see you, ${user.fullName.split(" ")[0]}`}
@@ -868,4 +885,12 @@ export default async function DashboardPage({
       </DashboardViewBody>
     </DashboardViewTransition>
   );
+}
+
+// TEMPORARY: times each call in the dashboard's Promise.all, by position.
+async function timedAll<T extends readonly unknown[]>(out: number[], items: T): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> }> {
+  const start = Date.now();
+  return Promise.all(
+    items.map((item, i) => Promise.resolve(item).then((v) => { out[i] = Date.now() - start; return v; })),
+  ) as never;
 }
