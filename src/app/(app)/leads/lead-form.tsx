@@ -44,6 +44,14 @@ export interface LeadDefaults {
   whatsapp: string | null;
   industry: string | null;
   website: string | null;
+  icpTier?: string | null;
+  region?: string | null;
+  leadList?: string | null;
+  googleRating?: string | null;
+  googleReviewCount?: string | null;
+  googleMapsUrl?: string | null;
+  phoneClass?: string | null;
+  phoneType?: string | null;
   businessType: string | null;
   companySize: string | null;
   street: string | null;
@@ -114,6 +122,14 @@ export function LeadForm({
       whatsapp: get("whatsapp"),
       industry: get("industry"),
       website: get("website"),
+      icpTier: get("icpTier"),
+      region: get("region"),
+      leadList: get("leadList"),
+      googleRating: get("googleRating"),
+      googleReviewCount: get("googleReviewCount"),
+      googleMapsUrl: get("googleMapsUrl"),
+      phoneClass: get("phoneClass"),
+      phoneType: get("phoneType"),
       businessType: get("businessType"),
       companySize: get("companySize"),
       street: get("street"),
@@ -212,6 +228,38 @@ export function LeadForm({
           </Field>
           <Field label="Company size">
             <PicklistSelect list="company_size" name="companySize" emptyLabel="Not stated" defaultValue={defaults?.companySize ?? ""} addLabel="Add a size" />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Prospecting</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label="ICP tier" help="How well they fit the customer we are looking for, e.g. A - Core or B - Broad.">
+            <Input name="icpTier" maxLength={60} defaultValue={defaults?.icpTier ?? ""} />
+          </Field>
+          <Field label="Region">
+            <Input name="region" maxLength={120} defaultValue={defaults?.region ?? ""} />
+          </Field>
+          <Field label="Lead list" help="The list they came from.">
+            <Input name="leadList" maxLength={120} defaultValue={defaults?.leadList ?? ""} />
+          </Field>
+          <Field label="Google Maps link">
+            <Input name="googleMapsUrl" type="url" defaultValue={defaults?.googleMapsUrl ?? ""} placeholder="https://www.google.com/maps/place/…" />
+          </Field>
+          <Field label="Google rating" hint="0 to 5 stars.">
+            <Input name="googleRating" type="number" min="0" max="5" step="0.1" defaultValue={defaults?.googleRating ?? ""} />
+          </Field>
+          <Field label="Google reviews" hint="How many reviews.">
+            <Input name="googleReviewCount" type="number" min="0" step="1" defaultValue={defaults?.googleReviewCount ?? ""} />
+          </Field>
+          <Field label="Phone class">
+            <Input name="phoneClass" maxLength={60} defaultValue={defaults?.phoneClass ?? ""} placeholder="Canadian/US" />
+          </Field>
+          <Field label="Phone type" help="Mobile, landline or other - fill it in once you have called them.">
+            <Input name="phoneType" maxLength={60} defaultValue={defaults?.phoneType ?? ""} placeholder="Mobile" />
           </Field>
         </CardContent>
       </Card>

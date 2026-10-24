@@ -248,6 +248,37 @@ export default async function LeadDetailPage({
             <DetailRow label="Created" help="When the lead entered the system. The clock against which a stale prospect is measured.">{formatDateTime(lead.createdAt)}</DetailRow>
           </CardContent>
         </Card>
+
+        {(lead.icpTier || lead.region || lead.leadList || lead.googleMapsUrl || lead.website || lead.street) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Prospecting</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <DetailRow label="ICP tier" help="How well they fit the customer we are looking for: A - Core is the closest match, B - Broad is related trades.">{lead.icpTier ?? "—"}</DetailRow>
+              <DetailRow label="Region">{lead.region ?? "—"}</DetailRow>
+              <DetailRow label="Lead list" help="The list they came from, which says what contact details they had.">{lead.leadList ?? "—"}</DetailRow>
+              <DetailRow label="Google rating">
+                {lead.googleRating != null
+                  ? `${Number(lead.googleRating).toFixed(1)} ★${lead.googleReviewCount != null ? ` from ${lead.googleReviewCount} review${lead.googleReviewCount === 1 ? "" : "s"}` : ""}`
+                  : "—"}
+              </DetailRow>
+              <DetailRow label="Google Maps">
+                {lead.googleMapsUrl ? (
+                  <a href={lead.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open listing</a>
+                ) : "—"}
+              </DetailRow>
+              <DetailRow label="Website">
+                {lead.website ? (
+                  <a href={/^https?:\/\//.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="break-all text-primary hover:underline">{lead.website}</a>
+                ) : "—"}
+              </DetailRow>
+              <DetailRow label="Address">{[lead.street, lead.city, lead.state, lead.postalCode, lead.country].filter(Boolean).join(", ") || "—"}</DetailRow>
+              <DetailRow label="Phone class">{lead.phoneClass ?? "—"}</DetailRow>
+              <DetailRow label="Phone type" help="Mobile, landline or other - filled in by whoever calls them.">{lead.phoneType ?? "—"}</DetailRow>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {lead.description && (

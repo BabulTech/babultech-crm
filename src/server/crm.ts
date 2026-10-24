@@ -430,6 +430,15 @@ const leadSchema = z.object({
   /** Credits a partner for the referral — carries through to the opportunity. */
   referredByPartnerId: z.string().uuid().optional().nullable(),
   ownerUserId: z.string().uuid(),
+  // Prospecting: from a list such as Google Maps, before anyone is spoken to.
+  icpTier: z.string().max(60).optional().nullable(),
+  googleRating: z.coerce.number().min(0).max(5).optional().nullable(),
+  googleReviewCount: z.coerce.number().int().min(0).optional().nullable(),
+  googleMapsUrl: z.string().url().max(2000).optional().nullable().or(z.literal("")),
+  phoneClass: z.string().max(60).optional().nullable(),
+  phoneType: z.string().max(60).optional().nullable(),
+  region: z.string().max(120).optional().nullable(),
+  leadList: z.string().max(120).optional().nullable(),
   rating: picklistCode.optional().nullable(),
   estimatedValue: z.coerce.number().min(0).optional().nullable(),
   description: z.string().optional().nullable(),
@@ -608,7 +617,7 @@ export async function createLead(
   try {
     const lead = await createRecord<{ id: string }>(
       "lead",
-      { ...parsed.data, email: parsed.data.email || null },
+      { ...parsed.data, email: parsed.data.email || null, googleMapsUrl: parsed.data.googleMapsUrl || null },
       { field: "leadNumber", sequence: SEQUENCES.LEAD },
     );
 
@@ -709,6 +718,7 @@ export async function updateLead(
         ...data,
         ...(before.status === "CONVERTED" ? { status: "CONVERTED" } : {}),
         email: data.email || null,
+        googleMapsUrl: data.googleMapsUrl || null,
         disqualifiedReason:
           data.status === "DISQUALIFIED" ? data.disqualifiedReason : null,
       },
@@ -830,6 +840,18 @@ export async function findLeadContactMatch(leadId: string): Promise<DuplicateMat
   return ((data ?? []) as DuplicateMatch[])[0] ?? null;
 }
 
+/** The values in use for the prospecting filters on the leads list. */
+export async function getLeadFilterOptions() {
+  await requirePermission(PERMISSIONS.LEAD_READ);
+  const db = await supabaseServer();
+  const distinct = async (column: "icpTier" | "region" | "leadList") => {
+    const { data } = await db.rpc("lead_distinct_values", { p_column: column });
+    return ((data ?? []) as { value: string }[]).map((r) => r.value);
+  };
+  const [icpTiers, regions, leadLists] = await Promise.all([distinct("icpTier"), distinct("region"), distinct("leadList")]);
+  return { icpTiers, regions, leadLists };
+}
+
 export async function listLeads(filters?: {
   search?: string;
   status?: string;
@@ -838,6 +860,10 @@ export async function listLeads(filters?: {
   campaignId?: string;
   /** The partner the lead is credited to. */
   partnerId?: string;
+  /** Prospecting fields: how well they fit, where, and which list. */
+  icpTier?: string;
+  region?: string;
+  leadList?: string;
 }) {
   const { where } = await scopedContext("ownerUserId");
 
@@ -865,10 +891,13 @@ export async function listLeads(filters?: {
   else query = query.neq("status", "PROSPECT");
   if (filters?.campaignId) query = query.eq("campaignId", filters.campaignId);
   if (filters?.partnerId) query = query.eq("referredByPartnerId", filters.partnerId);
+  if (filters?.icpTier) query = query.eq("icpTier", filters.icpTier);
+  if (filters?.region) query = query.eq("region", filters.region);
+  if (filters?.leadList) query = query.eq("leadList", filters.leadList);
   if (filters?.search) {
     const s = filters.search.replace(/[,()]/g, "");
     query = query.or(
-      `firstName.ilike.%${s}%,lastName.ilike.%${s}%,companyName.ilike.%${s}%,leadNumber.ilike.%${s}%`,
+      `firstName.ilike.%${s}%,lastName.ilike.%${s}%,companyName.ilike.%${s}%,leadNumber.ilike.%${s}%,phone.ilike.%${s}%`,
     );
   }
 

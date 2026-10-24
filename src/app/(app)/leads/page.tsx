@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SavedViewsControl } from "@/components/saved-views";
 import { applyDefaultView } from "@/server/saved-views";
 import { Plus, Upload } from "lucide-react";
-import { listLeads, listCampaigns } from "@/server/crm";
+import { listLeads, getLeadFilterOptions, listCampaigns } from "@/server/crm";
 import {
   PageHeader, Card, Table, THead, TBody, TR, TH, TD, Badge, statusTone,
   EmptyState, Input, Select, Button, StatTile, Forbidden
@@ -26,6 +26,7 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<{
     search?: string; status?: string; source?: string; campaignId?: string; partnerId?: string;
+    icpTier?: string; region?: string; leadList?: string;
   }>;
 }) {
   const _me = await requireUser();
@@ -33,12 +34,13 @@ export default async function LeadsPage({
 
   const params = await searchParams;
   await applyDefaultView("leads", params);
-  const [leads, users, campaigns, partners, prospects] = await Promise.all([
+  const [leads, users, campaigns, partners, prospects, prospecting] = await Promise.all([
     listLeads(params),
     getAssignableUsers(),
     listCampaigns(),
     listPartnerOptions(),
     countProspects(),
+    getLeadFilterOptions(),
   ]);
 
   const open = leads.filter((l) => !["CONVERTED", "DISQUALIFIED"].includes(l.status));
@@ -104,7 +106,7 @@ export default async function LeadsPage({
       <Card className="mt-6">
         <form className="flex flex-wrap items-end gap-3 border-b p-4">
           <div className="min-w-[220px] flex-1">
-            <Input name="search" placeholder="Search name, company or number…" defaultValue={params.search} />
+            <Input name="search" placeholder="Search name, company, phone or number…" defaultValue={params.search} />
           </div>
           <Select name="source" defaultValue={params.source ?? ""} className="w-52">
             <option value="">All sources</option>
@@ -132,6 +134,24 @@ export default async function LeadsPage({
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
+          {prospecting.icpTiers.length > 0 && (
+            <Select name="icpTier" defaultValue={params.icpTier ?? ""} className="w-52" aria-label="ICP tier">
+              <option value="">All ICP tiers</option>
+              {prospecting.icpTiers.map((v) => <option key={v} value={v}>{v}</option>)}
+            </Select>
+          )}
+          {prospecting.regions.length > 0 && (
+            <Select name="region" defaultValue={params.region ?? ""} className="w-52" aria-label="Region">
+              <option value="">All regions</option>
+              {prospecting.regions.map((v) => <option key={v} value={v}>{v}</option>)}
+            </Select>
+          )}
+          {prospecting.leadLists.length > 0 && (
+            <Select name="leadList" defaultValue={params.leadList ?? ""} className="w-52" aria-label="Lead list">
+              <option value="">All lead lists</option>
+              {prospecting.leadLists.map((v) => <option key={v} value={v}>{v}</option>)}
+            </Select>
+          )}
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
 
