@@ -852,6 +852,34 @@ export async function getLeadFilterOptions() {
   return { icpTiers, regions, leadLists };
 }
 
+export interface LeadStats {
+  total: number;
+  open: number;
+  converted: number;
+  disqualified: number;
+  estimatedValue: number;
+  partnerRegistrations: number;
+  awaitingReview: number;
+  prospects: number;
+  breakdown: Partial<Record<"status" | "icpTier" | "region" | "leadList", { value: string | null; count: number }[]>>;
+}
+
+/**
+ * True figures for the leads page, counted in the database with the list's
+ * filters. The list itself stops at LIST_LIMIT rows, so counting what it
+ * loaded undercounted as soon as there were more leads than that.
+ */
+export async function getLeadStats(filters?: Record<string, string | undefined>): Promise<LeadStats> {
+  await requirePermission(PERMISSIONS.LEAD_READ);
+  const db = await supabaseServer();
+  const keys = ["search", "status", "source", "campaignId", "partnerId", "icpTier", "region", "leadList"] as const;
+  const payload = Object.fromEntries(keys.filter((k) => filters?.[k]).map((k) => [k, filters![k]]));
+  const { data, error } = await db.rpc("lead_stats", { p_filters: payload });
+  if (error) throw new Error(`Could not count leads: ${error.message}`);
+  const d = data as LeadStats;
+  return { ...d, estimatedValue: Number(d.estimatedValue ?? 0) };
+}
+
 export async function listLeads(filters?: {
   search?: string;
   status?: string;

@@ -60,6 +60,14 @@ try {
   await page.goto(`${base}/leads`, { waitUntil: "networkidle" });
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   for (const label of ["ICP tier", "Region", "Lead list"]) await page.getByLabel(label).waitFor();
+  // True figures, not the 500 rows loaded.
+  const { count: openCount } = await db.from("lead").select("id", { count: "exact", head: true }).is("deletedAt", null).not("status", "in", "(PROSPECT,CONVERTED,DISQUALIFIED)");
+  const fmt = (n) => new Intl.NumberFormat("en-US").format(n);
+  await page.getByText(fmt(openCount), { exact: true }).first().waitFor();
+  await page.getByText(/Showing the newest 500 of/).waitFor();
+  await page.getByText("By ICP tier").waitFor();
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: false });
+  pass(`The figures count every lead (${fmt(openCount)} open), with a breakdown and a note that the table shows the newest 500`);
   await page.getByLabel("Lead list").selectOption("No phone");
   await page.getByLabel("ICP tier").selectOption("A - Core (design/renovation)");
   await page.getByRole("button", { name: "Filter" }).click();
