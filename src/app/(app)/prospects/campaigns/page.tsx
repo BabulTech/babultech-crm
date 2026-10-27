@@ -3,19 +3,19 @@ import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { PageHeader, Card, Table, THead, TBody, TR, TH, TD, Badge, Forbidden, EmptyState } from "@/components/ui";
 import { formatNumber, humanize } from "@/lib/utils";
 import { CHANNEL_LABELS, type Channel } from "@/lib/prospect-outreach";
-import { listProspectCampaigns } from "@/server/prospect-campaigns";
+import { listMarketingCampaignOptions, listProspectCampaigns } from "@/server/prospect-campaigns";
 import { NewCampaign } from "./campaign-form";
 
 export default async function ProspectCampaignsPage() {
   const me = await requireUser();
   if (!can(me, PERMISSIONS.PROSPECT_READ) && !can(me, PERMISSIONS.PROSPECT_WRITE)) return <Forbidden what="prospects" />;
   const canWrite = can(me, PERMISSIONS.PROSPECT_WRITE);
-  const campaigns = await listProspectCampaigns();
+  const [campaigns, marketingCampaigns] = await Promise.all([listProspectCampaigns(), canWrite ? listMarketingCampaignOptions() : Promise.resolve([])]);
 
   return (
     <>
       <PageHeader title="Outreach campaigns" description="Groups of prospects your team calls and emails, each with its own progress." backTo="/prospects" backLabel="Prospects">
-        {canWrite && <NewCampaign />}
+        {canWrite && <NewCampaign marketingCampaigns={marketingCampaigns} />}
       </PageHeader>
       <Card>
         {campaigns.length === 0 ? (

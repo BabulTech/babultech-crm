@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { supabaseServer } from "@/lib/supabase";
+import { supabaseAdmin, supabaseServer } from "@/lib/supabase";
 import { PERMISSIONS, authorize, requireUser, can } from "@/lib/authz";
 import { describeInvalid } from "@/lib/form-errors";
 import {
@@ -60,7 +60,7 @@ export async function getProspectCampaign(id: string) {
   const db = await supabaseServer();
   const { data, error } = await db
     .from("prospect_campaign")
-    .select("*, owner:app_user!prospect_campaign_ownerUserId_fkey ( id, fullName ), members:prospect_campaign_member ( \"userId\", role, user:app_user ( id, fullName, email ) )")
+    .select("*, marketingCampaign:campaign ( id, name ), owner:app_user!prospect_campaign_ownerUserId_fkey ( id, fullName ), members:prospect_campaign_member ( \"userId\", role, user:app_user ( id, fullName, email ) )")
     .eq("id", id).is("deletedAt", null).maybeSingle();
   if (error) {
     if (error.code === "22P02") return null;
@@ -74,6 +74,7 @@ export async function getProspectCampaign(id: string) {
   return {
     ...data,
     owner: one(data.owner) as { id: string; fullName: string } | null,
+    marketingCampaign: one(data.marketingCampaign) as { id: string; name: string } | null,
     members: ((data.members ?? []) as { userId: string; role: string; user: unknown }[]).map((m) => ({ userId: m.userId, role: m.role, user: one(m.user) as { id: string; fullName: string; email: string } | null })),
     stats: (stats ?? { total: 0, byStatus: {}, touched: 0 }) as { total: number; byStatus: Record<string, number>; touched: number },
     canManage: Boolean(managed),
@@ -87,6 +88,8 @@ const campaignSchema = z.object({
   status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]).or(z.literal("").transform(() => "ACTIVE" as const)).default("ACTIVE"),
   defaultChannel: z.enum(CHANNELS).optional().nullable().or(z.literal("").transform(() => null)),
   followupDays: z.coerce.number().int().min(1).max(60).default(3),
+  // The marketing campaign it is part of: qualified leads are credited to it.
+  marketingCampaignId: z.string().uuid().optional().nullable().or(z.literal("").transform(() => null)),
   startDate: z.string().optional().nullable().transform((v) => v || null),
   endDate: z.string().optional().nullable().transform((v) => v || null),
 });
@@ -118,6 +121,16 @@ export async function setProspectCampaignMember(campaignId: string, userId: stri
   if (error) return { ok: false, error: /row-level security/i.test(error.message) ? "Only the campaign's owner or a manager can change its team." : error.message };
   revalidatePath(`/prospects/campaigns/${campaignId}`);
   return { ok: true, data: undefined };
+}
+
+/**
+ * Marketing campaigns an outreach campaign can be linked to. Names only, so
+ * marketing staff without lead access can still choose one.
+ */
+export async function listMarketingCampaignOptions() {
+  await requireRead();
+  const { data } = await supabaseAdmin().from("campaign").select("id, name, status").is("deletedAt", null).order("name");
+  return (data ?? []) as { id: string; name: string; status: string }[];
 }
 
 /** People who could be put on a campaign's team or given a task. */

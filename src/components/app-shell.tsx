@@ -85,7 +85,7 @@ const NAV: NavGroup[] = [
   {
     label: "Marketing",
     items: [
-      { href: "/campaigns", label: "Campaigns", icon: Megaphone, permissions: ["lead:read"] },
+      { href: "/campaigns", label: "Marketing campaigns", icon: Megaphone, permissions: ["lead:read"] },
       { href: "/leads", label: "Leads", icon: UserPlus, permissions: ["lead:read"] },
       { href: "/email/templates", label: "Email templates", icon: FileText, permissions: ["lead:read", "account:read"] },
     ],

@@ -3,7 +3,7 @@ import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { PageHeader, Card, CardContent, CardHeader, CardTitle, StatTile, Input, Select, Button, Forbidden, Badge } from "@/components/ui";
 import { formatNumber, formatDate, humanize } from "@/lib/utils";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABELS, CHANNEL_LABELS, type Channel } from "@/lib/prospect-outreach";
-import { getProspectCampaign, listCampaignEntries, listProspectWorkers } from "@/server/prospect-campaigns";
+import { getProspectCampaign, listCampaignEntries, listMarketingCampaignOptions, listProspectWorkers } from "@/server/prospect-campaigns";
 import { CampaignSettings, CampaignTeam, EntriesTable } from "./campaign-panels";
 
 type Params = { status?: string; search?: string; page?: string };
@@ -15,11 +15,12 @@ export default async function ProspectCampaignPage({ params, searchParams }: { p
   const { id } = await params;
   const q = await searchParams;
   const page = Math.max(0, Number(q.page ?? 0) || 0);
-  const [campaign, entries, workers, next] = await Promise.all([
+  const [campaign, entries, workers, next, marketingCampaigns] = await Promise.all([
     getProspectCampaign(id),
     listCampaignEntries(id, { status: q.status, search: q.search }, page),
     canWrite ? listProspectWorkers() : Promise.resolve([]),
     listCampaignEntries(id, { status: "new" }, 0),
+    canWrite ? listMarketingCampaignOptions() : Promise.resolve([]),
   ]);
   if (!campaign) notFound();
 
@@ -86,6 +87,12 @@ export default async function ProspectCampaignPage({ params, searchParams }: { p
             <CardHeader><CardTitle>About</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               {campaign.description && <p className="whitespace-pre-wrap">{campaign.description}</p>}
+              <p>
+                <span className="text-muted-foreground">Marketing campaign: </span>
+                {campaign.marketingCampaign
+                  ? <a href={`/campaigns/${campaign.marketingCampaign.id}`} className="text-primary hover:underline">{campaign.marketingCampaign.name}</a>
+                  : "None - qualified leads are not credited to a marketing campaign"}
+              </p>
               <p className="text-muted-foreground">
                 {campaign.startDate ? `From ${formatDate(campaign.startDate)}` : "No start date"}
                 {campaign.endDate ? ` to ${formatDate(campaign.endDate)}` : ""}
@@ -94,7 +101,8 @@ export default async function ProspectCampaignPage({ params, searchParams }: { p
                 <CampaignSettings values={{
                   id, name: campaign.name, description: campaign.description, status: campaign.status, defaultChannel: campaign.defaultChannel,
                   followupDays: campaign.followupDays, startDate: campaign.startDate, endDate: campaign.endDate,
-                }} />
+                  marketingCampaignId: campaign.marketingCampaignId,
+                }} marketingCampaigns={marketingCampaigns} />
               )}
             </CardContent>
           </Card>

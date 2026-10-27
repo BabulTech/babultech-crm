@@ -6,7 +6,7 @@ import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Select,
 import { formatDate } from "@/lib/utils";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABELS, CAMPAIGN_STATUS_TONE, type CampaignStatus } from "@/lib/prospect-outreach";
 import { removeCampaignEntry, setCampaignStatus, setProspectCampaignMember, type CampaignEntryRow } from "@/server/prospect-campaigns";
-import { CampaignForm, type CampaignValues } from "../campaign-form";
+import { CampaignForm, type CampaignValues, type MarketingCampaignOption } from "../campaign-form";
 
 /** The campaign's prospects, with their status changeable in place. */
 export function EntriesTable({ campaignId, rows, canWrite }: { campaignId: string; rows: CampaignEntryRow[]; canWrite: boolean }) {
@@ -74,10 +74,10 @@ export function EntriesTable({ campaignId, rows, canWrite }: { campaignId: strin
   );
 }
 
-export function CampaignSettings({ values }: { values: CampaignValues }) {
+export function CampaignSettings({ values, marketingCampaigns }: { values: CampaignValues; marketingCampaigns: MarketingCampaignOption[] }) {
   const [open, setOpen] = useState(false);
   return open
-    ? <CampaignForm values={values} onCancel={() => setOpen(false)} />
+    ? <CampaignForm values={values} onCancel={() => setOpen(false)} marketingCampaigns={marketingCampaigns} />
     : <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Edit campaign</Button>;
 }
 

@@ -64,7 +64,9 @@ try {
   const admin = await makeUser("admin", crm.id);
   const marketer = await makeUser("marketer", ids.role);
   ids.dataset = (await db.from("prospect_dataset").insert({ name: `QA qualify ${run}` }).select("id").single()).data.id;
-  ids.campaign = (await db.from("prospect_campaign").insert({ name: `QA Qualify Campaign ${run}`, ownerUserId: admin.id }).select("id").single()).data.id;
+  // Linked to an existing marketing campaign; the lead credited to it is removed afterwards.
+  const marketing = (await db.from("campaign").select("id, name").is("deletedAt", null).limit(1).single()).data;
+  ids.campaign = (await db.from("prospect_campaign").insert({ name: `QA Qualify Campaign ${run}`, ownerUserId: admin.id, marketingCampaignId: marketing.id }).select("id").single()).data.id;
   const digits = String(Date.now()).slice(-7);
   const first = await makeProspect(`QA Qualify ${run} One`, `+1 905 ${digits.slice(0, 3)} ${digits.slice(3)}`);
   const second = await makeProspect(`QA Qualify ${run} Two`, `+1 289 ${digits.slice(0, 3)} ${digits.slice(3)}`);
@@ -92,7 +94,14 @@ try {
   assert.equal(lead.status, "NEW");
   assert.equal(lead.leadSource, `Prospecting - QA Qualify Campaign ${run}`);
   assert.ok(lead.description.includes(`Wants a demo next week ${run}`) && lead.description.includes("Ready for a demo"));
-  pass("Qualifying creates the lead with the decision maker, the phone, the owner and the outreach history, and opens it");
+  assert.equal(lead.campaignId, marketing.id, "Credited to the linked marketing campaign");
+  pass("Qualifying creates the lead with the decision maker, the phone, the owner and the outreach history, credited to the linked marketing campaign, and opens it");
+
+  await page.goto(`${base}/prospects/campaigns/${ids.campaign}`, { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: marketing.name, exact: true }).first().waitFor();
+  await page.getByRole("link", { name: "Marketing campaigns", exact: true }).waitFor();
+  pass("The outreach campaign shows its marketing campaign, and the sidebar says Marketing campaigns");
+  await page.goto(`${base}/leads/${leadId}`, { waitUntil: "networkidle" });
 
   await page.getByText("From prospecting", { exact: true }).waitFor();
   await page.getByRole("link", { name: `QA Qualify ${run} One` }).waitFor();

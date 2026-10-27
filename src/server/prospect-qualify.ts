@@ -66,9 +66,12 @@ export async function qualifyProspect(input: z.input<typeof qualifySchema>): Pro
   const name = person ? splitName(person.name) : { firstName: String(p.businessName).slice(0, 100), lastName: "—" };
 
   let campaignName: string | null = null;
+  // The marketing campaign the outreach belonged to gets the credit for the lead.
+  let marketingCampaignId: string | null = null;
   if (campaignId) {
-    const { data: c } = await db.from("prospect_campaign").select("name").eq("id", campaignId).maybeSingle();
+    const { data: c } = await db.from("prospect_campaign").select("name, \"marketingCampaignId\"").eq("id", campaignId).maybeSingle();
     campaignName = c?.name ?? null;
+    marketingCampaignId = (c?.marketingCampaignId as string | null) ?? null;
   }
 
   // What marketing did, newest first, for the lead's description.
@@ -100,7 +103,7 @@ export async function qualifyProspect(input: z.input<typeof qualifySchema>): Pro
       region: p.region, icpTier: p.icpTier, googleRating: p.googleRating, googleReviewCount: p.googleReviewCount, googleMapsUrl: p.googleMapsUrl,
       leadList: (Array.isArray(p.dataset) ? p.dataset[0] : p.dataset)?.name ?? null,
       leadSource: `Prospecting${campaignName ? ` - ${campaignName}` : ""}`.slice(0, 100),
-      ownerUserId, status: "NEW", description, updatedAt: new Date().toISOString(),
+      ownerUserId, status: "NEW", description, campaignId: marketingCampaignId, updatedAt: new Date().toISOString(),
     },
     p_number_field: "leadNumber",
     p_sequence: SEQUENCES.LEAD,
