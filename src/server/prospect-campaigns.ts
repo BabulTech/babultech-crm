@@ -240,9 +240,40 @@ const quickLogSchema = z.object({
   channel: z.enum(CHANNELS).optional().nullable().or(z.literal("").transform(() => null)),
   personId: z.string().uuid().optional().nullable().or(z.literal("").transform(() => null)),
   note: z.string().max(4000).optional().nullable(),
+  /** For a booked meeting: when it is, as an ISO time, and for how long. */
+  meetingAt: z.string().datetime({ message: "Meeting time: choose a date and time." }).optional().nullable(),
+  durationMinutes: z.coerce.number().int().min(5).max(600).optional().nullable(),
 });
 
-export interface QuickLogResult { taskCreated: string | null; suggestion: CampaignStatus | null; warnings: string[] }
+/** A booked meeting, ready for "Add to calendar". */
+export interface MeetingEvent { taskId: string | null; title: string; start: string; minutes: number; details: string; location?: string }
+
+export interface QuickLogResult { taskCreated: string | null; suggestion: CampaignStatus | null; warnings: string[]; meeting: MeetingEvent | null }
+
+/** The words of a meeting's calendar entry: who, how to reach them, and a link back. */
+async function meetingDetails(prospectId: string, personId: string | null, note: string | null | undefined) {
+  const db = await supabaseServer();
+  const [{ data: p }, { data: settings }] = await Promise.all([
+    db.from("prospect").select("\"businessName\", street, city, region, phones:prospect_phone ( phone, \"isPrimary\" ), people:prospect_person ( id, name, role, phone, email )").eq("id", prospectId).maybeSingle(),
+    db.from("company_setting").select("\"publicAppUrl\"").maybeSingle(),
+  ]);
+  const people = (p?.people ?? []) as { id: string; name: string; role: string | null; phone: string | null; email: string | null }[];
+  const person = personId ? people.find((x) => x.id === personId) : null;
+  const phone = person?.phone || ((p?.phones ?? []) as { phone: string; isPrimary: boolean }[]).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))[0]?.phone;
+  const base = String(settings?.publicAppUrl || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const business = String(p?.businessName ?? "Prospect");
+  return {
+    title: `Meeting with ${business}`,
+    details: [
+      person ? `With ${person.name}${person.role ? `, ${person.role}` : ""}` : null,
+      phone ? `Phone: ${phone}` : null,
+      person?.email ? `Email: ${person.email}` : null,
+      note?.trim() ? `Note: ${note.trim()}` : null,
+      base ? `In the CRM: ${base}/prospects/${prospectId}` : null,
+    ].filter(Boolean).join("\n"),
+    location: [p?.street, p?.city, p?.region].filter(Boolean).join(", ") || undefined,
+  };
+}
 
 /**
  * Records one piece of outreach: the activity, the touch, the follow-up task,
@@ -253,7 +284,8 @@ export async function quickLogProspect(input: z.input<typeof quickLogSchema>): P
   if (!auth.ok) return auth;
   const parsed = quickLogSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: describeInvalid(parsed.error) };
-  const { prospectId, campaignId, action, personId, note } = parsed.data;
+  const { prospectId, campaignId, action, personId, note, meetingAt, durationMinutes } = parsed.data;
+  if (action === "MEETING_BOOKED" && !meetingAt) return { ok: false, error: "Meeting time: choose a date and time." };
   const db = await supabaseServer();
 
   const { data: entry } = await db.from("prospect_campaign_entry")
@@ -271,7 +303,11 @@ export async function quickLogProspect(input: z.input<typeof quickLogSchema>): P
 
   const now = new Date();
   const { error } = await db.from("prospect_activity").insert({
-    prospectId, campaignId, type: action, channel, personId: personId || null, content: note?.trim() || null, occurredAt: now.toISOString(), actorId: auth.user.id,
+    prospectId, campaignId, type: action, channel, personId: personId || null, occurredAt: now.toISOString(), actorId: auth.user.id,
+    content: [
+      meetingAt ? `For ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi", dateStyle: "medium", timeStyle: "short" }).format(new Date(meetingAt))} (Pakistan time), ${durationMinutes ?? 30} minutes` : null,
+      note?.trim() || null,
+    ].filter(Boolean).join(". ") || null,
   });
   if (error) return { ok: false, error: /row-level security/i.test(error.message) ? "You are not on this campaign's team." : error.message };
 
@@ -279,11 +315,19 @@ export async function quickLogProspect(input: z.input<typeof quickLogSchema>): P
   // same call is never logged twice.
   const warnings: string[] = [];
   let taskCreated: string | null = null;
-  const task = followUpFor(action, campaign?.followupDays ?? 3, now);
+  let meeting: MeetingEvent | null = null;
+  const minutes = durationMinutes ?? 30;
+  const details = meetingAt ? await meetingDetails(prospectId, personId ?? null, note) : null;
+  const followUp = followUpFor(action, campaign?.followupDays ?? 3, now);
+  // A meeting's task is the meeting itself: on its day, with its time.
+  const task = followUp && meetingAt && details
+    ? { ...followUp, title: details.title, dueDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(meetingAt)), meetingAt, durationMinutes: minutes }
+    : followUp;
   if (task) {
-    const { error: taskError } = await db.from("prospect_task").insert({ ...task, prospectId, campaignId, assignedTo: auth.user.id, createdById: auth.user.id });
+    const { data: saved, error: taskError } = await db.from("prospect_task").insert({ ...task, prospectId, campaignId, assignedTo: auth.user.id, createdById: auth.user.id }).select("id").single();
     if (taskError) warnings.push("Logged, but the follow-up task could not be created. Add one by hand.");
     else taskCreated = `${task.title}, ${task.dueDate}`;
+    if (details && meetingAt) meeting = { taskId: saved?.id ?? null, title: details.title, start: meetingAt, minutes, details: details.details, location: details.location };
   }
   if (TOUCH_TYPES.includes(action)) {
     const { error: touchError } = await db.rpc("prospect_campaign_touch", { p_campaign: campaignId, p_prospect: prospectId, p_at: now.toISOString() });
@@ -293,7 +337,7 @@ export async function quickLogProspect(input: z.input<typeof quickLogSchema>): P
   const suggestion = rule && rule.from.includes(entry.status as CampaignStatus) ? rule.to : null;
 
   revalidatePath(`/prospects/${prospectId}`);
-  return { ok: true, data: { taskCreated, suggestion, warnings } };
+  return { ok: true, data: { taskCreated, suggestion, warnings, meeting } };
 }
 
 export async function addProspectNote(prospectId: string, campaignId: string | null, text: string): Promise<ActionResult> {
@@ -314,7 +358,7 @@ export async function getProspectOutreach(prospectId: string) {
   const [entries, activities, tasks] = await Promise.all([
     db.from("prospect_campaign_entry").select("id, \"campaignId\", status, \"touchCount\", \"lastContactedAt\", campaign:prospect_campaign ( name, \"defaultChannel\", \"followupDays\", status )").eq("prospectId", prospectId),
     db.from("prospect_activity").select("id, type, channel, content, \"occurredAt\", \"campaignId\", actor:app_user ( fullName ), person:prospect_person ( name, role ), campaign:prospect_campaign ( name )").eq("prospectId", prospectId).order("occurredAt", { ascending: false }).limit(200),
-    db.from("prospect_task").select("id, title, type, \"dueDate\", priority, status, \"campaignId\", assignee:app_user!prospect_task_assignedTo_fkey ( fullName )").eq("prospectId", prospectId).order("status").order("dueDate").limit(100),
+    db.from("prospect_task").select("id, title, type, \"dueDate\", priority, status, \"campaignId\", \"meetingAt\", \"durationMinutes\", assignee:app_user!prospect_task_assignedTo_fkey ( fullName )").eq("prospectId", prospectId).order("status").order("dueDate").limit(100),
   ]);
   return {
     entries: (entries.data ?? []).map((e) => ({ ...e, campaign: one(e.campaign) as { name: string; defaultChannel: string | null; followupDays: number; status: string } | null })),
@@ -337,7 +381,7 @@ export async function listProspectTasks(filters: { tab?: string; mine?: boolean;
   const db = await supabaseServer();
   const today = new Date().toISOString().slice(0, 10);
   let q = db.from("prospect_task")
-    .select("id, title, type, \"dueDate\", priority, status, \"completedAt\", \"prospectId\", \"campaignId\", prospect:prospect ( \"businessName\" ), campaign:prospect_campaign ( name ), assignee:app_user!prospect_task_assignedTo_fkey ( fullName )", { count: "exact" });
+    .select("id, title, type, \"dueDate\", priority, status, \"completedAt\", \"prospectId\", \"campaignId\", \"meetingAt\", \"durationMinutes\", prospect:prospect ( \"businessName\" ), campaign:prospect_campaign ( name ), assignee:app_user!prospect_task_assignedTo_fkey ( fullName )", { count: "exact" });
   if (filters.mine) q = q.eq("assignedTo", me.id);
   if (filters.campaignId) q = q.eq("campaignId", filters.campaignId);
   const tab = filters.tab ?? "today";
@@ -351,6 +395,7 @@ export async function listProspectTasks(filters: { tab?: string; mine?: boolean;
     total: count ?? 0,
     rows: (data ?? []).map((t) => ({
       id: t.id, title: t.title, type: t.type, dueDate: t.dueDate, priority: t.priority, status: t.status, completedAt: t.completedAt,
+      meetingAt: t.meetingAt as string | null, durationMinutes: t.durationMinutes as number | null,
       prospectId: t.prospectId, campaignId: t.campaignId,
       prospect: (one(t.prospect) as { businessName?: string } | null)?.businessName ?? null,
       campaign: (one(t.campaign) as { name?: string } | null)?.name ?? null,

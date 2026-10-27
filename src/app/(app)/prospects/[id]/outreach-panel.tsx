@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { AddToCalendar } from "@/components/add-to-calendar";
 import {
   ACTIVITY_LABELS, CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABELS, CHANNELS, CHANNEL_LABELS, QUICK_LOG_ACTIONS, TASK_TYPE_LABELS,
   channelAllows, type CampaignStatus, type Channel, type QuickLogAction,
@@ -13,7 +14,7 @@ import {
 
 interface Entry { campaignId: string; status: string; touchCount: number; lastContactedAt: string | null; campaign: { name: string; defaultChannel: string | null; status: string } | null }
 interface Activity { id: string; type: string; channel: string | null; content: string | null; occurredAt: string; actor: string | null; person: { name: string; role: string | null } | null; campaign: string | null }
-interface Task { id: string; title: string; type: string; dueDate: string; priority: string; status: string; assignee: string | null }
+interface Task { id: string; title: string; type: string; dueDate: string; priority: string; status: string; assignee: string | null; meetingAt?: string | null; durationMinutes?: number | null }
 
 const reload = () => window.location.reload();
 
@@ -37,6 +38,10 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
   const [note, setNote] = useState("");
   const [result, setResult] = useState<(QuickLogResult & { action: QuickLogAction }) | null>(null);
   const [addTo, setAddTo] = useState("");
+  // Booking a meeting asks for its time first.
+  const [booking, setBooking] = useState(false);
+  const [meetingAt, setMeetingAt] = useState("");
+  const [minutes, setMinutes] = useState("30");
 
   const switchCampaign = (id: string) => {
     const url = new URL(window.location.href);
@@ -46,11 +51,18 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
 
   function log(action: QuickLogAction) {
     if (!entry) return;
+    if (action === "MEETING_BOOKED" && !booking) { setBooking(true); return; }
+    if (action === "MEETING_BOOKED" && !meetingAt) { setError("Meeting time: choose a date and time."); return; }
     setError(null);
     start(async () => {
-      const r = await quickLogProspect({ prospectId, campaignId: entry.campaignId, action, channel: (fixed ?? channel) || null, personId: personId || null, note });
+      const r = await quickLogProspect({
+        prospectId, campaignId: entry.campaignId, action, channel: (fixed ?? channel) || null, personId: personId || null, note,
+        // The browser reads the box in the person's own time zone.
+        ...(action === "MEETING_BOOKED" ? { meetingAt: new Date(meetingAt).toISOString(), durationMinutes: Number(minutes) } : {}),
+      });
       if (!r.ok) { setError(r.error); return; }
       setNote("");
+      setBooking(false);
       setResult({ ...r.data, action });
     });
   }
@@ -110,6 +122,12 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
             <p className="font-medium">{ACTIVITY_LABELS[result.action]} logged.</p>
             {result.taskCreated && <p>Follow-up task: {result.taskCreated}.</p>}
             {result.warnings.map((w) => <p key={w}>{w}</p>)}
+            {result.meeting && (
+              <div className="mt-2">
+                <p className="mb-1">{result.meeting.title}, {formatDateTime(result.meeting.start)} for {result.meeting.minutes} minutes.</p>
+                <AddToCalendar uid={result.meeting.taskId ?? prospectId} event={{ title: result.meeting.title, start: result.meeting.start, minutes: result.meeting.minutes, details: result.meeting.details, location: result.meeting.location }} />
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap gap-2">
               {result.suggestion && canWrite && (
                 <Button size="sm" disabled={pending} onClick={() => start(async () => {
@@ -140,6 +158,20 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
               </Field>
             </div>
             <Textarea aria-label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened, in a line (optional)" />
+            {booking && (
+              <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed bg-background p-3">
+                <Field label="Meeting on" required>
+                  <Input type="datetime-local" aria-label="Meeting date and time" value={meetingAt} onChange={(e) => setMeetingAt(e.target.value)} />
+                </Field>
+                <Field label="Length">
+                  <Select aria-label="Meeting length" value={minutes} onChange={(e) => setMinutes(e.target.value)} className="w-32">
+                    {[15, 30, 45, 60, 90].map((m) => <option key={m} value={m}>{m} minutes</option>)}
+                  </Select>
+                </Field>
+                <Button size="sm" disabled={pending || !meetingAt} onClick={() => log("MEETING_BOOKED")}>Log the meeting</Button>
+                <Button size="sm" variant="ghost" onClick={() => setBooking(false)}>Cancel</Button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {actions.map((a) => (
                 <Button key={a} size="sm" variant={a === "CALL_CONNECTED" || a === "MEETING_BOOKED" ? "default" : "outline"} disabled={pending} onClick={() => log(a)}>
@@ -233,8 +265,13 @@ export function ProspectTasks({ prospectId, campaignId, tasks, canWrite }: { pro
             <span className={t.status === "done" ? "text-muted-foreground line-through" : ""}>
               {t.title}
               <span className={`block text-xs ${t.status === "open" && t.dueDate < today ? "text-destructive" : "text-muted-foreground"}`}>
-                {TASK_TYPE_LABELS[t.type] ?? t.type} · due {formatDate(t.dueDate)}{t.assignee ? ` · ${t.assignee}` : ""}
+                {t.meetingAt ? `Meeting ${formatDateTime(t.meetingAt)}, ${t.durationMinutes ?? 30} min` : `${TASK_TYPE_LABELS[t.type] ?? t.type} · due ${formatDate(t.dueDate)}`}{t.assignee ? ` · ${t.assignee}` : ""}
               </span>
+              {t.meetingAt && t.status === "open" && (
+                <span className="mt-1 block">
+                  <AddToCalendar uid={t.id} event={{ title: t.title, start: t.meetingAt, minutes: t.durationMinutes ?? 30, }} crmPath={`/prospects/${prospectId}`} />
+                </span>
+              )}
             </span>
           </label>
         ))}
