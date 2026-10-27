@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
+import { getLeadProspectOrigin } from "@/server/prospect-qualify";
 import { Timeline } from "@/components/timeline";
 import { MarketingPanel } from "@/components/marketing-panel";
 import { QualifyProspectButton } from "@/components/qualify-prospect-button";
@@ -43,12 +44,13 @@ export default async function LeadDetailPage({
   // getLead joins the group rather than following it: it takes only `id`, so
    // waiting for the other three to finish first bought nothing but a second
    // round trip. See the note on the project page for the latency arithmetic.
-  const [notes, documents, audit, activities, lead] = await Promise.all([
+  const [notes, documents, audit, activities, lead, origin] = await Promise.all([
     listNotes("Lead", id),
     listDocuments("Lead", id),
     getAuditTrail("Lead", id, 15),
     listActivitiesFor("Lead", id),
     getLead(id),
+    getLeadProspectOrigin(id),
   ]);
   if (!lead) notFound();
 
@@ -226,6 +228,14 @@ export default async function LeadDetailPage({
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <DetailRow label="Lead number" help="Issued automatically and never reused. Quote it when someone asks about this prospect.">{lead.leadNumber}</DetailRow>
+            {origin && (
+              <DetailRow label="From prospecting" help="Marketing worked this business as a prospect and qualified it. Its outreach history is in the description and notes.">
+                {origin.canOpen ? <Link href={`/prospects/${origin.id}`} className="text-primary hover:underline">{origin.businessName}</Link> : origin.businessName}
+                <span className="block text-xs text-muted-foreground">
+                  Qualified{origin.qualifiedBy ? ` by ${origin.qualifiedBy}` : ""}{origin.qualifiedAt ? ` on ${formatDateTime(origin.qualifiedAt)}` : ""}
+                </span>
+              </DetailRow>
+            )}
             <DetailRow label="Source" help="The channel they arrived through - referral, website, event. Aggregated to show which channels return the spend.">{lead.leadSource ?? "—"}</DetailRow>
             <DetailRow label="Campaign" help="The marketing push that produced this lead, if any. Links what the campaign cost to what it actually returned.">
               {lead.campaign ? (

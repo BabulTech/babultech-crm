@@ -7,7 +7,8 @@ import { PROSPECT_STATUS_LABELS } from "@/lib/prospects";
 import { getProspect, listDatasets } from "@/server/prospects";
 import { ContactPoints, PeoplePanel, ProspectEditor, TagEditor } from "./prospect-panels";
 import { OutreachHistory, OutreachPanel, ProspectTasks } from "./outreach-panel";
-import { getProspectOutreach, listCampaignEntries, listProspectCampaigns } from "@/server/prospect-campaigns";
+import { QualifyButton } from "./qualify-button";
+import { getProspectOutreach, listCampaignEntries, listProspectCampaigns, listProspectWorkers } from "@/server/prospect-campaigns";
 
 export default async function ProspectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ campaign?: string }> }) {
   const me = await requireUser();
@@ -27,6 +28,8 @@ export default async function ProspectPage({ params, searchParams }: { params: P
   // The next prospect still at New in that campaign, for "Next".
   const queue = campaignId ? await listCampaignEntries(campaignId, { status: "new" }, 0) : { rows: [] };
   const next = queue.rows.find((r) => r.prospectId !== id);
+  const canQualify = can(me, PERMISSIONS.PROSPECT_QUALIFY) && p.status === "ACTIVE";
+  const owners = canQualify ? await listProspectWorkers() : [];
 
   const custom = Object.entries((p.customFields ?? {}) as Record<string, string>).filter(([, v]) => v);
   const website = p.website ? (/^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`) : null;
@@ -94,6 +97,15 @@ export default async function ProspectPage({ params, searchParams }: { params: P
               <DetailRow label="Added">{formatDateTime(p.createdAt)}</DetailRow>
             </CardContent>
           </Card>
+          {canQualify && (
+            <QualifyButton
+              prospectId={p.id}
+              campaignId={campaignId}
+              people={(p.people as unknown as { id: string; name: string; role: string | null; isPrimary: boolean }[])}
+              owners={owners}
+              canOpenLeads={can(me, PERMISSIONS.LEAD_READ)}
+            />
+          )}
           <ProspectTasks prospectId={p.id} campaignId={campaignId} tasks={outreach.tasks as never} canWrite={canWrite} />
           <TagEditor prospectId={p.id} tags={p.tags ?? []} canWrite={canWrite} />
           {canWrite && <ProspectEditor prospect={p as never} datasets={datasets.map((d) => ({ id: d.id, name: d.name }))} />}
