@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  LayoutDashboard, Megaphone, UserPlus, Building2, Users, Target,
+  LayoutDashboard, BarChart3, Megaphone, UserPlus, Building2, Users, Target,
   FileText, FileSignature, Handshake, Coins, LifeBuoy, FolderKanban,
   Receipt, Package, CalendarCheck, Menu, X, LogOut, Clock, UsersRound, Banknote,
   ShieldCheck, UserCog, Settings, BookOpen, CheckSquare, FileInput, Wallet, Stamp,
@@ -77,6 +77,7 @@ const NAV: NavGroup[] = [
       { href: "/prospects", label: "Prospects", icon: Target, permissions: ["prospect:read", "prospect:write"] },
       { href: "/prospects/campaigns", label: "Outreach campaigns", icon: Megaphone, permissions: ["prospect:read", "prospect:write"] },
       { href: "/prospects/tasks", label: "Outreach tasks", icon: ListChecks, permissions: ["prospect:read", "prospect:write"] },
+      { href: "/prospects/analytics", label: "Outreach analytics", icon: BarChart3, permissions: ["prospect:read", "prospect:write"] },
       { href: "/prospects/datasets", label: "Datasets", icon: FileText, permissions: ["prospect:read", "prospect:write"] },
       { href: "/prospects/import", label: "Import prospects", icon: UserPlus, permissions: ["prospect:write"] },
     ],
