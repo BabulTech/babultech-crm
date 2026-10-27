@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { ALL_BUT_DELETE, SUPER_ADMIN_ONLY } from "@/lib/nav-permissions";
 import { useRouter } from "next/navigation";
 import { Lock, Plus, ShieldAlert, Trash2, Users } from "lucide-react";
 import {
@@ -49,6 +50,8 @@ export function RolesPanel({ roles, canManage = false }: { roles: RoleRow[]; can
   }
 
   const covered = useMemo(() => effectivePermissions([...granted]), [granted]);
+  // The two roles that hold a wide grant instead of individual ticks.
+  const special: "all" | "crm" | null = role?.permissions.includes("*") ? "all" : role?.permissions.includes(ALL_BUT_DELETE) ? "crm" : null;
 
   // For someone doing two jobs: one role with both roles' permissions. It sees
   // as narrowly as the narrower of the two until someone chooses otherwise,
@@ -231,11 +234,16 @@ export function RolesPanel({ roles, canManage = false }: { roles: RoleRow[]; can
               </div>
             </div>
 
-            {role?.permissions.includes("all:except-delete") ? (
-              <Alert tone="info">This role holds every permission except deleting records and managing roles, which only the Super Admin has. Permissions added to the system later are included automatically.</Alert>
-            ) : role?.permissions.includes("*") ? (
-              <Alert tone="warning">This role holds every permission in the system.</Alert>
-            ) : (
+            {/* Every role shows the whole list. The Super Admin and CRM Admin hold
+                theirs through one wide grant, so their ticks show what that grant
+                covers and cannot be changed one by one. */}
+            {special === "crm" && (
+              <Alert tone="info">This role holds every permission except deleting records and managing roles, which only the Super Admin has. Permissions added to the system later are included automatically, so the ticks below cannot be changed one by one.</Alert>
+            )}
+            {special === "all" && (
+              <Alert tone="warning">This role holds every permission in the system, including ones added later. The ticks below cannot be changed one by one.</Alert>
+            )}
+            {(
               <div className="space-y-4">
                 {PERMISSION_CATALOGUE.map((group) => (
                   <fieldset key={group.name} className="rounded-lg border p-4">
@@ -243,7 +251,8 @@ export function RolesPanel({ roles, canManage = false }: { roles: RoleRow[]; can
                     <p className="mb-3 text-xs text-muted-foreground">{group.description}</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {group.permissions.map((permission) => {
-                        const ticked = granted.has(permission.value);
+                        const bySpecial = special === "all" || (special === "crm" && !SUPER_ADMIN_ONLY.includes(permission.value));
+                        const ticked = bySpecial || granted.has(permission.value);
                         const impliedOnly = !ticked && covered.has(permission.value);
                         return (
                           <label
@@ -254,7 +263,7 @@ export function RolesPanel({ roles, canManage = false }: { roles: RoleRow[]; can
                               type="checkbox"
                               className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
                               checked={ticked || impliedOnly}
-                              disabled={role?.isSystem || impliedOnly}
+                              disabled={role?.isSystem || impliedOnly || special !== null}
                               onChange={() => toggle(permission.value)}
                             />
                             <span className="min-w-0">
@@ -267,7 +276,9 @@ export function RolesPanel({ roles, canManage = false }: { roles: RoleRow[]; can
                                 )}
                               </span>
                               <span className="block text-xs text-muted-foreground">
-                                {impliedOnly ? "Already included by a wider permission above." : permission.help}
+                                {special === "crm" && SUPER_ADMIN_ONLY.includes(permission.value)
+                                  ? "Only the Super Admin has this."
+                                  : impliedOnly ? "Already included by a wider permission above." : permission.help}
                               </span>
                             </span>
                           </label>
