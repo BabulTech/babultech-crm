@@ -6,14 +6,27 @@ import { formatDateTime } from "@/lib/utils";
 import { PROSPECT_STATUS_LABELS } from "@/lib/prospects";
 import { getProspect, listDatasets } from "@/server/prospects";
 import { ContactPoints, PeoplePanel, ProspectEditor, TagEditor } from "./prospect-panels";
+import { OutreachHistory, OutreachPanel, ProspectTasks } from "./outreach-panel";
+import { getProspectOutreach, listCampaignEntries, listProspectCampaigns } from "@/server/prospect-campaigns";
 
-export default async function ProspectPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProspectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ campaign?: string }> }) {
   const me = await requireUser();
   if (!can(me, PERMISSIONS.PROSPECT_READ) && !can(me, PERMISSIONS.PROSPECT_WRITE)) return <Forbidden what="prospects" />;
   const canWrite = can(me, PERMISSIONS.PROSPECT_WRITE);
   const { id } = await params;
-  const [p, datasets] = await Promise.all([getProspect(id), canWrite ? listDatasets() : Promise.resolve([])]);
+  const { campaign: wanted } = await searchParams;
+  const [p, datasets, outreach, campaigns] = await Promise.all([
+    getProspect(id),
+    canWrite ? listDatasets() : Promise.resolve([]),
+    getProspectOutreach(id),
+    canWrite ? listProspectCampaigns() : Promise.resolve([]),
+  ]);
   if (!p) notFound();
+  // The campaign being worked: the one in the address, else its only one.
+  const campaignId = outreach.entries.find((e) => e.campaignId === wanted)?.campaignId ?? outreach.entries[0]?.campaignId ?? null;
+  // The next prospect still at New in that campaign, for "Next".
+  const queue = campaignId ? await listCampaignEntries(campaignId, { status: "new" }, 0) : { rows: [] };
+  const next = queue.rows.find((r) => r.prospectId !== id);
 
   const custom = Object.entries((p.customFields ?? {}) as Record<string, string>).filter(([, v]) => v);
   const website = p.website ? (/^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`) : null;
@@ -38,8 +51,18 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          <OutreachPanel
+            prospectId={p.id}
+            entries={outreach.entries as never}
+            campaignId={campaignId}
+            people={(p.people as unknown as { id: string; name: string; role: string | null; isPrimary: boolean }[])}
+            campaigns={campaigns.filter((c) => c.status !== "COMPLETED").map((c) => ({ id: c.id, name: c.name }))}
+            nextProspect={next ? { id: next.prospectId, name: next.businessName } : null}
+            canWrite={canWrite}
+          />
           <ContactPoints prospectId={p.id} phones={p.phones} emails={p.emails} canWrite={canWrite} />
           <PeoplePanel prospectId={p.id} people={p.people as never} canWrite={canWrite} />
+          <OutreachHistory prospectId={p.id} campaignId={campaignId} activities={outreach.activities} canWrite={canWrite} />
           {custom.length > 0 && (
             <Card>
               <CardHeader><CardTitle>More from the source sheet</CardTitle></CardHeader>
@@ -71,6 +94,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
               <DetailRow label="Added">{formatDateTime(p.createdAt)}</DetailRow>
             </CardContent>
           </Card>
+          <ProspectTasks prospectId={p.id} campaignId={campaignId} tasks={outreach.tasks as never} canWrite={canWrite} />
           <TagEditor prospectId={p.id} tags={p.tags ?? []} canWrite={canWrite} />
           {canWrite && <ProspectEditor prospect={p as never} datasets={datasets.map((d) => ({ id: d.id, name: d.name }))} />}
         </div>

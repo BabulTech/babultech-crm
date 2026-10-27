@@ -6,8 +6,9 @@ import { formatNumber } from "@/lib/utils";
 import { PROSPECT_PAGE_SIZE, PROSPECT_STATUSES, PROSPECT_STATUS_LABELS } from "@/lib/prospects";
 import { getProspectFilterValues, getProspectStats, listDatasets, listProspects } from "@/server/prospects";
 import { ProspectsTable } from "./prospects-table";
+import { listProspectCampaigns } from "@/server/prospect-campaigns";
 
-type Params = { search?: string; datasetId?: string; status?: string; icpTier?: string; region?: string; tag?: string; page?: string };
+type Params = { search?: string; datasetId?: string; status?: string; icpTier?: string; region?: string; tag?: string; page?: string; addTo?: string };
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const me = await requireUser();
@@ -17,12 +18,15 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
 
   const params = await searchParams;
   const page = Math.max(0, Number(params.page ?? 0) || 0);
-  const [rows, stats, values, datasets] = await Promise.all([
+  const [rows, stats, values, datasets, campaigns] = await Promise.all([
     listProspects(params, page),
     getProspectStats(params),
     getProspectFilterValues(),
     listDatasets(),
+    canWrite ? listProspectCampaigns() : Promise.resolve([]),
   ]);
+  const addTo = params.addTo;
+  const filters = { search: params.search, datasetId: params.datasetId, status: params.status, icpTier: params.icpTier, region: params.region, tag: params.tag };
 
   const pages = Math.max(1, Math.ceil(stats.total / PROSPECT_PAGE_SIZE));
   const link = (changes: Record<string, string | null>) => {
@@ -114,10 +118,18 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               {values.tags.map((v) => <option key={v} value={v}>{v}</option>)}
             </Select>
           )}
+          {addTo && <input type="hidden" name="addTo" value={addTo} />}
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
 
-        <ProspectsTable rows={rows} canWrite={canWrite} />
+        <ProspectsTable
+          rows={rows}
+          canWrite={canWrite}
+          campaigns={campaigns.filter((c) => c.status !== "COMPLETED").map((c) => ({ id: c.id, name: c.name }))}
+          defaultCampaign={addTo ?? ""}
+          filters={filters}
+          matching={stats.total}
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm text-muted-foreground">
           <span>

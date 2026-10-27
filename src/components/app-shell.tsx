@@ -74,8 +74,10 @@ const NAV: NavGroup[] = [
   {
     label: "Prospecting",
     items: [
-      { href: "/prospects", label: "Prospects", icon: Target, permissions: ["prospect:read"] },
-      { href: "/prospects/datasets", label: "Datasets", icon: FileText, permissions: ["prospect:read"] },
+      { href: "/prospects", label: "Prospects", icon: Target, permissions: ["prospect:read", "prospect:write"] },
+      { href: "/prospects/campaigns", label: "Outreach campaigns", icon: Megaphone, permissions: ["prospect:read", "prospect:write"] },
+      { href: "/prospects/tasks", label: "Outreach tasks", icon: ListChecks, permissions: ["prospect:read", "prospect:write"] },
+      { href: "/prospects/datasets", label: "Datasets", icon: FileText, permissions: ["prospect:read", "prospect:write"] },
       { href: "/prospects/import", label: "Import prospects", icon: UserPlus, permissions: ["prospect:write"] },
     ],
   },
@@ -83,7 +85,6 @@ const NAV: NavGroup[] = [
     label: "Marketing",
     items: [
       { href: "/campaigns", label: "Campaigns", icon: Megaphone, permissions: ["lead:read"] },
-      { href: "/campaign-members", label: "Campaign members", icon: ContactRound, permissions: ["lead:read"] },
       { href: "/leads", label: "Leads", icon: UserPlus, permissions: ["lead:read"] },
       { href: "/email/templates", label: "Email templates", icon: FileText, permissions: ["lead:read", "account:read"] },
     ],
