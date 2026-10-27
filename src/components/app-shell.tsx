@@ -72,6 +72,14 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Prospecting",
+    items: [
+      { href: "/prospects", label: "Prospects", icon: Target, permissions: ["prospect:read"] },
+      { href: "/prospects/datasets", label: "Datasets", icon: FileText, permissions: ["prospect:read"] },
+      { href: "/prospects/import", label: "Import prospects", icon: UserPlus, permissions: ["prospect:write"] },
+    ],
+  },
+  {
     label: "Marketing",
     items: [
       { href: "/campaigns", label: "Campaigns", icon: Megaphone, permissions: ["lead:read"] },

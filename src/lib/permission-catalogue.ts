@@ -33,6 +33,15 @@ export interface PermissionGroup {
 
 export const PERMISSION_CATALOGUE: PermissionGroup[] = [
   {
+    name: "Prospecting",
+    description: "Marketing's raw prospect lists and the outreach worked on them, before anyone is a sales lead.",
+    permissions: [
+      { value: "prospect:read", label: "See prospects", help: "Open the prospect lists, datasets and each prospect's page." },
+      { value: "prospect:write", label: "Work on prospects", help: "Import datasets, edit prospects and their people, and log outreach. Also lets them see prospects." },
+      { value: "prospect:qualify", label: "Qualify prospects", help: "Turn a prospect into a sales lead, which hands it to the sales team." },
+    ],
+  },
+  {
     name: "Sales",
     description: "Leads, customers, deals and what was agreed with them.",
     permissions: [

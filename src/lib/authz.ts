@@ -410,6 +410,11 @@ export async function scopedContext(
 }
 
 export const PERMISSIONS = {
+  // Prospecting (marketing): raw businesses before they are leads.
+  PROSPECT_READ: "prospect:read",
+  PROSPECT_WRITE: "prospect:write",
+  PROSPECT_QUALIFY: "prospect:qualify",
+
   // Sales
   LEAD_READ: "lead:read",
   LEAD_WRITE: "lead:write",
