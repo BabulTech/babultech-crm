@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { RecentMark } from "@/components/recent-mark";
 import { FavoriteControl } from "@/components/favorite-control";
@@ -371,6 +372,7 @@ export default async function PartnerDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Partner" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Partner" entityId={id} documents={documents} />
+        <RecordEmail entityType="Partner" entityId={id} />
       </div>
     </>
   );

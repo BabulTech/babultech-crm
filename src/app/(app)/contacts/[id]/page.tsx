@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { EmailOptOutButton } from "@/components/email-opt-out";
@@ -195,6 +196,7 @@ export default async function ContactDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Contact" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Contact" entityId={id} documents={documents} />
+        <RecordEmail entityType="Contact" entityId={id} />
       </div>
 
       <div className="mt-6">

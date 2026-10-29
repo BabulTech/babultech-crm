@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
 import { getLeadProspectOrigin } from "@/server/prospect-qualify";
@@ -325,6 +326,7 @@ export default async function LeadDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Lead" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Lead" entityId={id} documents={documents} />
+        <RecordEmail entityType="Lead" entityId={id} />
       </div>
 
       <div className="mt-6">

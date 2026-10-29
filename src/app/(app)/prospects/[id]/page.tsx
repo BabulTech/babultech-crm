@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
@@ -106,6 +107,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
               canOpenLeads={can(me, PERMISSIONS.LEAD_READ)}
             />
           )}
+          <RecordEmail entityType="Prospect" entityId={p.id} />
           <ProspectTasks prospectId={p.id} campaignId={campaignId} tasks={outreach.tasks as never} canWrite={canWrite} />
           <TagEditor prospectId={p.id} tags={p.tags ?? []} canWrite={canWrite} />
           {canWrite && <ProspectEditor prospect={p as never} datasets={datasets.map((d) => ({ id: d.id, name: d.name }))} />}

@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
 import { DeleteControl } from "@/components/delete-control";
@@ -236,6 +237,7 @@ export default async function CaseDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="SupportCase" entityId={id} notes={notes} />
         <DocumentsPanel entityType="SupportCase" entityId={id} documents={documents} />
+        <RecordEmail entityType="Case" entityId={id} />
       </div>
     </>
   );

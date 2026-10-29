@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShieldCheck, Handshake } from "lucide-react";
@@ -344,6 +345,7 @@ export default async function UserDetailPage({
               <DetailRow label="Created">{formatDate(user.createdAt)}</DetailRow>
             </CardContent>
           </Card>
+          <RecordEmail entityType="User" entityId={user.id} />
         </div>
       </div>
     </>
