@@ -16,6 +16,8 @@ export const NOTIFICATION_KINDS = [
   { kind: "QUOTE_ACCEPTED", label: "Quote accepted", description: "A quote on your deal, or a deal you follow, is accepted.", emailByDefault: false },
   { kind: "HOT_LEAD", label: "Hot lead", description: "A lead you own first reaches the lead-scoring threshold.", emailByDefault: false },
   { kind: "DEAL_WON", label: "Deal won", description: "A deal you own or follow is closed won.", emailByDefault: false },
+  { kind: "TIMESHEET_REMINDER", label: "Log today's time", description: "At 9 pm, when you have logged nothing that day.", emailByDefault: false },
+  { kind: "TIMESHEET_DUE", label: "Submit your timesheet", description: "Sunday at 9 pm if the week is not submitted, and Monday morning if it is still not in.", emailByDefault: true },
   { kind: "TASK_DUE", label: "Due tomorrow and overdue", description: "Checked every morning for your tasks, calls, meetings and project tasks.", emailByDefault: false },
   { kind: "FOLLOWED_CHANGE", label: "Records I follow", description: "The stage, status or owner changes, or a note is added.", emailByDefault: false },
   { kind: "AUTOMATION", label: "Reminders from rules", description: "An automatic rule spotted something: a lead with no follow-up, a deal not moving, a case response due soon.", emailByDefault: false },

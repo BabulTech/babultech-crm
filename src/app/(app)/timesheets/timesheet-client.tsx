@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
-import { logTime, updateTimeLog, deleteTimeLog, submitWeek } from "@/server/timesheets";
+import { logTime, updateTimeLog, deleteTimeLog } from "@/server/timesheets";
 import { hoursBetween, findOverlaps } from "@/lib/work-hours";
 import {
   Button, Card, CardContent, CardHeader, CardTitle, Field, Input,
@@ -84,7 +84,6 @@ export function TimesheetClient({
   const isInternalProject = selectedProject?.projectType === "INTERNAL";
   const totalHours = entries.reduce((s, e) => s + Number(e.hours), 0);
   const billableHours = entries.filter((e) => e.billable).reduce((s, e) => s + Number(e.hours), 0);
-  const submittable = entries.filter((e) => ["DRAFT", "REJECTED"].includes(e.approvalStatus));
 
   const hoursOn = (day: string) =>
     entries.filter((e) => e.workDate.slice(0, 10) === day).reduce((s, e) => s + Number(e.hours), 0);
@@ -151,18 +150,6 @@ export function TimesheetClient({
       const result = await deleteTimeLog(id);
       if (result.ok) router.refresh();
       else setError(result.error);
-    });
-  }
-
-  function submit() {
-    setError(null);
-    setNotice(null);
-    startTransition(async () => {
-      const result = await submitWeek(weekStart);
-      if (result.ok) {
-        setNotice(`${result.data.count} entr${result.data.count === 1 ? "y" : "ies"} submitted for approval.`);
-        router.refresh();
-      } else setError(result.error);
     });
   }
 
@@ -354,9 +341,6 @@ export function TimesheetClient({
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setAdding(!adding)}>
               {adding ? "Cancel" : <><Plus className="h-4 w-4" /> Log time</>}
-            </Button>
-            <Button type="button" size="sm" disabled={pending || submittable.length === 0} onClick={submit}>
-              Submit week ({submittable.length})
             </Button>
           </div>
         </CardHeader>

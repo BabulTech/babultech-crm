@@ -1,3 +1,4 @@
+import { TimesheetPulse } from "@/components/timesheet-pulse";
 import Link from "next/link";
 import {
   AlertTriangle, Target, Receipt, FolderKanban, LifeBuoy, Handshake,
@@ -513,6 +514,8 @@ export default async function DashboardPage({
           <LiveIndicator />
         </div>
       </div>
+
+      <TimesheetPulse />
 
       {/* Only rendered when there is somewhere to switch to. A single tab is
           not a choice, and a tab strip that never changes anything is noise. */}

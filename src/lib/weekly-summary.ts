@@ -65,6 +65,14 @@ export async function buildWeeklySummary() {
   const { data: company } = await db.from("company_setting").select("\"publicAppUrl\"").maybeSingle();
   const base = String(company?.publicAppUrl || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
   const a = o.attention;
+  // Last week's timesheets: how many are in, and how many fell short of their hours.
+  const [{ data: people }, { data: sheets }] = await Promise.all([
+    db.rpc("timesheet_people"),
+    db.from("weekly_timesheet").select("status, \"loggedHours\", \"committedHours\"").eq("weekStart", from),
+  ]);
+  const staff = (people ?? []).length;
+  const sheetsIn = (sheets ?? []).filter((s) => s.status === "SUBMITTED" || s.status === "APPROVED");
+  const shortWeeks = sheetsIn.filter((s) => Number(s.loggedHours) < Number(s.committedHours)).length;
   const top = o.team.slice(0, 5).map((t) => `<li>${t.name}: ${num(t.touches)} outreach touches, ${t.qualified} qualified, ${t.won} deals won, ${num(t.hours)} hours</li>`).join("");
 
   const messageHtml =
@@ -73,6 +81,7 @@ export async function buildWeeklySummary() {
     `<p><strong>Sales.</strong> ${c.dealsWon} deals won worth ${pkr(c.dealsWonValue)} (${change(c.dealsWonValue, p.dealsWonValue)}), ${c.dealsLost} lost. Open pipeline ${pkr(o.sales.pipelineValue)} across ${o.sales.openDeals} deals; ${o.sales.closingThisMonth} expected to close this month, ${o.sales.pastCloseDate} past their close date.</p>` +
     `<p><strong>Money.</strong> Invoiced ${pkr(c.invoiced)}, collected ${pkr(c.collected)} (${change(c.collected, p.collected)}), spent ${pkr(c.expenses)}. Outstanding ${pkr(o.money.outstanding)}, of which ${pkr(o.money.overdueValue)} is overdue on ${o.money.overdueCount} invoices.</p>` +
     `<p><strong>Delivery.</strong> ${o.delivery.activeProjects} active projects: ${o.delivery.byHealth.GREEN} green, ${o.delivery.byHealth.AMBER} amber, ${o.delivery.byHealth.RED} red. ${num(c.hoursLogged)} hours logged; ${o.delivery.overdueTasks} tasks overdue.</p>` +
+    (staff ? `<p><strong>Timesheets.</strong> ${sheetsIn.length} of ${staff} submitted, ${(sheets ?? []).filter((s) => s.status === "APPROVED").length} approved, ${shortWeeks} short of their committed hours, ${staff - sheetsIn.length} not submitted.</p>` : "") +
     (top ? `<p><strong>Team.</strong></p><ul>${top}</ul>` : "") +
     `<p><strong>Needs a decision.</strong> ${a.approvals} approvals waiting, ${a.casesBreached} support cases past their deadline, ${a.contractsExpiring} contracts ending within 60 days, ${a.staleLeads} leads untouched for a week.</p>`;
 
