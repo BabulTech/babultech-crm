@@ -115,6 +115,32 @@ interface RecordInfo { name: string; suggestions: Suggestion[]; values: Record<s
 const first = (full: string) => full.trim().split(/\s+/)[0] ?? full;
 const joined = (...p: (string | null | undefined)[]) => p.filter(Boolean).join(" ").trim();
 
+const nameOf = (rel: unknown) => (one(rel) as { name?: string } | null)?.name ?? "";
+
+/**
+ * A customer-side record: the named contact first, then the account's other
+ * contacts. The person's own access to contacts decides which are listed.
+ */
+async function withContacts(name: string, company: string, accountId: string | null, contactId: string | null): Promise<RecordInfo> {
+  const db = await supabaseServer();
+  type C = { id: string; firstName: string; lastName: string; email: string | null; emailOptOut: boolean; jobTitle?: string | null };
+  const rows: C[] = [];
+  if (contactId) {
+    const { data } = await db.from("contact").select("id, \"firstName\", \"lastName\", email, \"emailOptOut\"").eq("id", contactId).maybeSingle();
+    if (data) rows.push(data as C);
+  }
+  if (accountId) {
+    const { data } = await db.from("contact").select("id, \"firstName\", \"lastName\", email, \"emailOptOut\"").eq("accountId", accountId).is("deletedAt", null).not("email", "is", null).order("lastName").limit(20);
+    for (const c of (data ?? []) as C[]) if (!rows.some((r) => r.id === c.id)) rows.push(c);
+  }
+  const main = rows[0];
+  return {
+    name,
+    suggestions: rows.filter((c) => c.email).map((c) => ({ email: c.email!, label: joined(c.firstName, c.lastName), optedOut: Boolean(c.emailOptOut) })),
+    values: { firstName: main?.firstName ?? "", fullName: main ? joined(main.firstName, main.lastName) : "", company },
+  };
+}
+
 /** Reads the record as the person (row-level security decides) and lists its addresses. */
 async function loadRecord(entityType: EmailScreen, id: string, me: AuthedUser): Promise<RecordInfo | null> {
   const db = await supabaseServer();
@@ -167,6 +193,48 @@ async function loadRecord(entityType: EmailScreen, id: string, me: AuthedUser): 
         values: { firstName: c?.firstName ?? "", fullName: c ? joined(c.firstName, c.lastName) : "", company: String(data.displayName) },
       };
     }
+    case "CampaignMember": {
+      const { data } = await db.from("campaign_member").select("\"firstName\", \"lastName\", email, \"companyName\", \"emailOptOut\"").eq("id", id).maybeSingle();
+      if (!data) return null;
+      const full = joined(data.firstName, data.lastName);
+      return { name: full || String(data.email ?? "Campaign member"), suggestions: data.email ? [{ email: data.email, label: full, optedOut: Boolean(data.emailOptOut) }] : [], values: { firstName: data.firstName ?? "", fullName: full, company: data.companyName ?? "" } };
+    }
+    case "Account": {
+      const { data } = await db.from("account").select("name").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return withContacts(String(data.name), String(data.name), id, null);
+    }
+    case "Opportunity": {
+      const { data } = await db.from("opportunity").select("\"opportunityNumber\", name, \"accountId\", \"primaryContactId\", account:account!accountId ( name )").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return withContacts(`${data.opportunityNumber}: ${data.name}`, nameOf(data.account), data.accountId, data.primaryContactId);
+    }
+    case "Quotation": {
+      const { data } = await db.from("quotation").select("\"quoteNumber\", \"accountId\", \"contactId\", account:account!accountId ( name )").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return withContacts(String(data.quoteNumber), nameOf(data.account), data.accountId, data.contactId);
+    }
+    case "Invoice": {
+      const { data } = await db.from("invoice").select("\"invoiceNumber\", \"accountId\", \"contactId\", account:account!accountId ( name )").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return withContacts(String(data.invoiceNumber), nameOf(data.account), data.accountId, data.contactId);
+    }
+    case "Project": {
+      const { data } = await db.from("project").select("\"projectNumber\", name, \"accountId\", account:account!accountId ( name )").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return withContacts(`${data.projectNumber}: ${data.name}`, nameOf(data.account), data.accountId, null);
+    }
+    case "Person": {
+      const { data } = await db.from("staff_profile").select("\"fullName\", \"personalEmail\", \"userId\"").eq("id", id).maybeSingle();
+      if (!data) return null;
+      const work = data.userId ? (await supabaseAdmin().from("app_user").select("email").eq("id", data.userId).maybeSingle()).data?.email : null;
+      const full = String(data.fullName);
+      return {
+        name: full,
+        suggestions: [work && { email: work, label: `${full} (work)` }, data.personalEmail && { email: data.personalEmail, label: `${full} (personal)` }].filter(Boolean) as Suggestion[],
+        values: { firstName: first(full), fullName: full, company: "" },
+      };
+    }
     case "User": {
       if (!can(me, PERMISSIONS.ADMIN)) return null;
       const { data } = await supabaseAdmin().from("app_user").select("\"fullName\", email, \"notificationEmail\"").eq("id", id).maybeSingle();
@@ -192,7 +260,7 @@ export async function getEmailComposeContext(entityType: string, entityId: strin
   const [senders, templates, documents] = await Promise.all([
     admin.from("email_sender").select("id, label, \"fromName\", \"fromAddress\", \"replyTo\", \"isDefault\"").eq("active", true).order("label"),
     admin.from("email_template").select("id, name, subject, body").eq("active", true).order("name"),
-    (await supabaseServer()).from("document").select("id, \"fileName\", \"fileSizeBytes\", \"mimeType\"").eq("relatedEntityType", entityType).eq("relatedEntityId", entityId).is("deletedAt", null).order("createdAt", { ascending: false }).limit(50),
+    (await supabaseServer()).from("document").select("id, \"fileName\", \"fileSizeBytes\", \"mimeType\"").eq("relatedEntityType", EMAIL_SCREENS[entityType].docType).eq("relatedEntityId", entityId).is("deletedAt", null).order("createdAt", { ascending: false }).limit(50),
   ]);
   const senderList = (senders.data ?? []) as { id: string; label: string; fromName: string | null; fromAddress: string; replyTo: string | null; isDefault: boolean }[];
   return {
@@ -279,7 +347,7 @@ export async function sendRecordEmail(input: z.input<typeof sendSchema>): Promis
     attachments.push({ fileName: u.fileName, mimeType: u.mimeType ?? null, size: u.size, storagePath: u.path, documentId: null });
   }
   if (d.documentIds.length) {
-    const { data: docs } = await (await supabaseServer()).from("document").select("id, \"fileName\", \"mimeType\", \"fileSizeBytes\", \"storageUrl\"").in("id", d.documentIds).eq("relatedEntityType", entityType).eq("relatedEntityId", d.entityId).is("deletedAt", null);
+    const { data: docs } = await (await supabaseServer()).from("document").select("id, \"fileName\", \"mimeType\", \"fileSizeBytes\", \"storageUrl\"").in("id", d.documentIds).eq("relatedEntityType", EMAIL_SCREENS[entityType].docType).eq("relatedEntityId", d.entityId).is("deletedAt", null);
     for (const doc of docs ?? []) attachments.push({ fileName: doc.fileName, mimeType: doc.mimeType, size: Number(doc.fileSizeBytes ?? 0), storagePath: doc.storageUrl, documentId: doc.id });
   }
   if (attachments.reduce((s, a) => s + a.size, 0) > EMAIL_ATTACHMENT_LIMIT) return { ok: false, error: "Attachments come to more than 10 MB. Take some off." };
@@ -315,7 +383,7 @@ export async function sendRecordEmail(input: z.input<typeof sendSchema>): Promis
     if (!documentId) {
       const { data: doc } = await admin.from("document").insert({
         id: randomUUID(), fileName: a.fileName, storageUrl: a.storagePath, mimeType: a.mimeType ?? "application/octet-stream", fileSizeBytes: a.size,
-        category: "Email attachment", relatedEntityType: entityType, relatedEntityId: d.entityId, uploadedById: me.id, updatedAt: now,
+        category: "Email attachment", relatedEntityType: EMAIL_SCREENS[entityType].docType, relatedEntityId: d.entityId, uploadedById: me.id, updatedAt: now,
       }).select("id").single();
       documentId = doc?.id ?? null;
     }

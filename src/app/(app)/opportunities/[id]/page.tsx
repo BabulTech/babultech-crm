@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
 import { Timeline } from "@/components/timeline";
@@ -294,6 +295,7 @@ export default async function OpportunityDetailPage({
 <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Opportunity" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Opportunity" entityId={id} documents={documents} />
+        <RecordEmail entityType="Opportunity" entityId={id} />
       </div>
             ),
           },

@@ -22,7 +22,7 @@ const run = randomUUID().slice(0, 6).toUpperCase();
 const passed = [];
 const errors = [];
 const pass = (what) => { passed.push(what); console.log(`  PASS  ${what}`); };
-const ids = { users: [], role: randomUUID(), lead: randomUUID() };
+const ids = { users: [], role: randomUUID(), lead: randomUUID(), account: randomUUID(), contact: randomUUID() };
 let browser;
 let savedSetting;
 
@@ -95,6 +95,16 @@ try {
   await page.getByText(`Hello Sana ${run}`, { exact: true }).waitFor();
   pass("The sent email is listed in the lead's Emails panel");
 
+  const contactEmail = `mailscreen-contact-${run.toLowerCase()}@example.com`;
+  const acc = await db.from("account").insert({ id: ids.account, accountNumber: `QA-MAIL-${run}`, name: `QA Mail Account ${run}`, accountType: "CUSTOMER", ownerUserId: admin.id, updatedAt: new Date().toISOString() });
+  if (acc.error) throw new Error(acc.error.message);
+  const con = await db.from("contact").insert({ id: ids.contact, accountId: ids.account, firstName: "Bilal", lastName: `Buyer ${run}`, email: contactEmail, isPrimary: true, updatedAt: new Date().toISOString() });
+  if (con.error) throw new Error(con.error.message);
+  await page.goto(`${base}/accounts/${ids.account}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "New email" }).click();
+  await page.locator("form").filter({ has: page.getByLabel("Subject") }).getByText(contactEmail).first().waitFor();
+  pass("A customer account's page offers New email with the account's contacts as recipients");
+
   await page.goto(`${base}/settings/email-screens`, { waitUntil: "networkidle" });
   const card = page.locator('[data-screen="Lead"]');
   await card.getByLabel("CRM Admin", { exact: true }).click();
@@ -125,6 +135,8 @@ try {
   if (docs.length) await db.storage.from("documents").remove(docs.map((d) => d.storageUrl).filter(Boolean));
   await db.from("document").delete().eq("relatedEntityId", ids.lead);
   await db.from("lead").delete().eq("id", ids.lead);
+  await db.from("contact").delete().eq("id", ids.contact);
+  await db.from("account").delete().eq("id", ids.account);
   for (const id of ids.users) {
     for (const t of ["notification", "record_follow", "recent_record", "login_event", "favorite_record", "user_preference"]) await db.from(t).delete().eq("userId", id);
     await db.from("audit_history").delete().eq("changedById", id);

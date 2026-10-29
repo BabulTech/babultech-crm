@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
 import { DeliverablesPanel } from "@/components/deliverables-panel";
@@ -451,6 +452,7 @@ export default async function ProjectWorkspacePage({
               <div className="grid gap-6 lg:grid-cols-2">
                 <NotesSection entityType="Project" entityId={id} notes={notes} />
                 <DocumentsPanel entityType="Project" entityId={id} documents={documents} />
+                <RecordEmail entityType="Project" entityId={id} />
               </div>
             ),
           },

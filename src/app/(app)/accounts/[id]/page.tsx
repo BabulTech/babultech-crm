@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
 import { DeleteControl } from "@/components/delete-control";
@@ -328,6 +329,7 @@ export default async function AccountDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Account" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Account" entityId={id} documents={documents} />
+        <RecordEmail entityType="Account" entityId={id} />
       </div>
 
       <div className="mt-6">

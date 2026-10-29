@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Pencil } from "lucide-react";
@@ -224,6 +225,7 @@ export default async function CampaignMemberPage({
               <DetailRow label="Campaigns reached them">{member.campaignCount}</DetailRow>
             </CardContent>
           </Card>
+          <RecordEmail entityType="CampaignMember" entityId={id} />
         </div>
       </div>
     </>

@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
 import { RecentMark } from "@/components/recent-mark";
@@ -385,6 +386,7 @@ Do let me know if you would like anything adjusted.`}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="Quotation" entityId={id} notes={notes} />
         <DocumentsPanel entityType="Quotation" entityId={id} documents={documents} />
+        <RecordEmail entityType="Quotation" entityId={id} />
       </div>
 
       <div className="mt-6">

@@ -1,3 +1,4 @@
+import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
@@ -128,6 +129,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           </Card>
 
           <DocumentsPanel entityType="StaffProfile" entityId={id} documents={documents} />
+          <RecordEmail entityType="Person" entityId={id} />
         </div>
 
         <div className="space-y-6">
