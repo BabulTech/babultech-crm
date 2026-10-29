@@ -78,6 +78,7 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
           <span className="font-medium">{selected.size} selected</span>
           <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Tag, e.g. Call this week" className="h-8 w-56" aria-label="Tag to add" />
           <Button size="sm" onClick={applyTag} disabled={pending || !tag.trim()}>{pending ? "Tagging…" : "Add tag"}</Button>
+          <Button asChild size="sm" variant="outline"><a href={`/email/compose?type=Prospect&ids=${[...selected].join(",")}`}>Email {selected.size} selected</a></Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
         </div>
       )}

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui";
 import { sendMassEmail, type Recipient, type EmailTemplate, type EmailSender } from "@/server/communications";
 
-type Audience = "Lead" | "Contact" | "CampaignMember";
+type Audience = "Lead" | "Contact" | "CampaignMember" | "Prospect";
 
 /**
  * Writing one email to many people - leads, contacts or campaign members.

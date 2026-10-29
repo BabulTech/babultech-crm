@@ -22,7 +22,7 @@ const run = randomUUID().slice(0, 6).toUpperCase();
 const passed = [];
 const errors = [];
 const pass = (what) => { passed.push(what); console.log(`  PASS  ${what}`); };
-const ids = { users: [], role: randomUUID(), lead: randomUUID(), account: randomUUID(), contact: randomUUID() };
+const ids = { users: [], role: randomUUID(), lead: randomUUID(), account: randomUUID(), contact: randomUUID(), prospects: [randomUUID(), randomUUID()] };
 let browser;
 let savedSetting;
 
@@ -105,6 +105,28 @@ try {
   await page.locator("form").filter({ has: page.getByLabel("Subject") }).getByText(contactEmail).first().waitFor();
   pass("A customer account's page offers New email with the account's contacts as recipients");
 
+  // Mass email to prospects: two businesses, one archived and so left out.
+  for (const [pid, status, who] of [[ids.prospects[0], "ACTIVE", "Ayesha Khan"], [ids.prospects[1], "ARCHIVED", "Omar Ali"]]) {
+    const pr = await db.from("prospect").insert({ id: pid, businessName: `QA Bulk ${who} ${run}`, status });
+    if (pr.error) throw new Error(pr.error.message);
+    const pp = await db.from("prospect_person").insert({ prospectId: pid, name: who, email: `mailscreen-${pid.slice(0, 8)}@example.com`, isPrimary: true });
+    if (pp.error) throw new Error(pp.error.message);
+  }
+  await page.goto(`${base}/email/compose?type=Prospect&ids=${ids.prospects.join(",")}`, { waitUntil: "networkidle" });
+  await page.locator("input[maxlength='300']").fill(`Bulk hello ${run}`);
+  await page.locator("textarea").first().fill("Hello {{firstName}} at {{companyName}}.");
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Send to 1 person" }).click();
+  await page.waitForURL(/\/leads\/email\/sends\//, { timeout: 60000 }).catch(async (e) => {
+    throw new Error(`${e.message.split("\n")[0]} -- page says: ${(await page.locator("main").innerText()).slice(-900)}`);
+  });
+  const { data: acts } = await db.from("activity").select("relatedEntityType, relatedEntityId").eq("relatedEntityId", ids.prospects[0]);
+  assert.equal(acts.length, 1);
+  assert.equal(acts[0].relatedEntityType, "Prospect");
+  const { data: touches } = await db.from("prospect_activity").select("type").eq("prospectId", ids.prospects[0]);
+  assert.ok(touches.some((t) => t.type === "EMAIL_SENT"));
+  pass("Mass email to prospects sends to the active one, leaves out the archived one, and logs outreach");
+
   await page.goto(`${base}/settings/email-screens`, { waitUntil: "networkidle" });
   const card = page.locator('[data-screen="Lead"]');
   await card.getByLabel("CRM Admin", { exact: true }).click();
@@ -119,6 +141,10 @@ try {
   await other.getByText(`Hello Sana ${run}`, { exact: true }).waitFor();
   assert.equal(await other.getByRole("button", { name: "New email" }).count(), 0);
   pass("Someone in another role still sees the history but no New email button");
+
+  await other.goto(`${base}/email/compose?type=Lead&ids=${ids.lead}`, { waitUntil: "networkidle" });
+  await other.getByText("switched off for your role").waitFor();
+  pass("The same limit stops them mass-emailing leads from the list");
 
   assert.deepEqual(errors, []);
   console.log(`\nAll ${passed.length} checks passed.`);
@@ -137,6 +163,13 @@ try {
   await db.from("lead").delete().eq("id", ids.lead);
   await db.from("contact").delete().eq("id", ids.contact);
   await db.from("account").delete().eq("id", ids.account);
+  const batches = (await db.from("activity").select("batchId").in("relatedEntityId", ids.prospects)).data ?? [];
+  await db.from("activity").delete().in("relatedEntityId", ids.prospects);
+  for (const b of batches) if (b.batchId) await db.from("email_batch").delete().eq("id", b.batchId);
+  await db.from("job").delete().like("title", `Email: Bulk hello ${run}`);
+  await db.from("prospect_activity").delete().in("prospectId", ids.prospects);
+  await db.from("prospect_person").delete().in("prospectId", ids.prospects);
+  await db.from("prospect").delete().in("id", ids.prospects);
   for (const id of ids.users) {
     for (const t of ["notification", "record_follow", "recent_record", "login_event", "favorite_record", "user_preference"]) await db.from(t).delete().eq("userId", id);
     await db.from("audit_history").delete().eq("changedById", id);

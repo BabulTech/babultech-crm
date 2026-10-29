@@ -8,6 +8,7 @@ import {
   CardContent, Table, THead, TBody, TR, TH, TD, EmptyState,
 } from "@/components/ui";
 import { formatDateTime } from "@/lib/utils";
+import { loadProspectRecipients } from "@/lib/prospect-recipients";
 import { AutoRefresh } from "@/components/auto-refresh";
 
 /**
@@ -60,12 +61,14 @@ export default async function SendPage({
   const idsOf = (type: string) =>
     activities.filter((a) => ((a.relatedEntityType as string) ?? "Lead") === type).map((a) => a.relatedEntityId as string);
   const none = ["00000000-0000-0000-0000-000000000000"];
-  const [{ data: leads }, { data: contacts }, { data: members }] = await Promise.all([
+  const [{ data: leads }, { data: contacts }, { data: members }, prospects] = await Promise.all([
     db.from("lead").select("id, firstName, lastName, companyName").in("id", idsOf("Lead").length ? idsOf("Lead") : none),
     db.from("contact").select("id, firstName, lastName, account ( name )").in("id", idsOf("Contact").length ? idsOf("Contact") : none),
     db.from("campaign_member").select("id, firstName, lastName, companyName").in("id", idsOf("CampaignMember").length ? idsOf("CampaignMember") : none),
+    loadProspectRecipients(db, idsOf("Prospect")),
   ]);
   const leadById = new Map<string, { id: string; firstName: string; lastName: string | null; companyName: string | null; href: string }>();
+  for (const p of prospects) leadById.set(p.id, { id: p.id, firstName: p.firstName || p.companyName, lastName: p.firstName ? p.lastName : null, companyName: p.companyName, href: `/prospects/${p.id}` });
   for (const l of leads ?? []) leadById.set(l.id as string, { id: l.id as string, firstName: l.firstName as string, lastName: l.lastName as string | null, companyName: l.companyName as string | null, href: `/leads/${l.id}` });
   for (const m of members ?? []) leadById.set(m.id as string, { id: m.id as string, firstName: m.firstName as string, lastName: m.lastName as string | null, companyName: m.companyName as string | null, href: `/campaign-members/${m.id}` });
   for (const c of contacts ?? []) {

@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "./supabase";
 import { isReservedAddress } from "./notification-mailer";
+import { loadProspectRecipients } from "./prospect-recipients";
 
 /**
  * Emailing a set of people - leads, contacts or campaign members - shared by our
@@ -30,7 +31,7 @@ import { isReservedAddress } from "./notification-mailer";
  * partner's are read under theirs, which only ever return the partner's own.
  */
 
-export type Audience = "Lead" | "Contact" | "CampaignMember";
+export type Audience = "Lead" | "Contact" | "CampaignMember" | "Prospect";
 
 /** The domain the mail provider sends for: the one in EMAIL_FROM. */
 export function verifiedDomain(): string | null {
@@ -276,13 +277,14 @@ export async function sendNextLeadEmails(batchId: string): Promise<{ processed: 
 
   // Names for the placeholders, from whichever kind of person each one is.
   const idsOf = (type: string) => batch.filter((b) => (b.relatedEntityType ?? "Lead") === type).map((b) => b.relatedEntityId as string);
-  const [leads, contacts, members] = await Promise.all([
+  const [leads, contacts, members, prospects] = await Promise.all([
     idsOf("Lead").length ? admin.from("lead").select("id, firstName, lastName, companyName").in("id", idsOf("Lead")) : { data: [] },
     idsOf("Contact").length ? admin.from("contact").select("id, firstName, lastName, account ( name )").in("id", idsOf("Contact")) : { data: [] },
     idsOf("CampaignMember").length ? admin.from("campaign_member").select("id, firstName, lastName, companyName").in("id", idsOf("CampaignMember")) : { data: [] },
+    loadProspectRecipients(admin, idsOf("Prospect")),
   ]);
   const leadById = new Map<string, { firstName: string; lastName: string | null; companyName: string | null }>();
-  for (const l of [...(leads.data ?? []), ...(members.data ?? [])]) {
+  for (const l of [...(leads.data ?? []), ...(members.data ?? []), ...prospects]) {
     leadById.set(l.id as string, { firstName: l.firstName as string, lastName: (l.lastName as string | null) ?? null, companyName: (l.companyName as string | null) ?? null });
   }
   for (const c of contacts.data ?? []) {

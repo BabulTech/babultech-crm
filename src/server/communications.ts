@@ -6,6 +6,8 @@ import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
 import { authorize, requireUser, can, canAny, PERMISSIONS } from "@/lib/authz";
 import { prepareLeadEmails, verifiedDomain, type Audience, type SendResult } from "@/lib/lead-mailer";
 import { queueJob } from "@/lib/jobs";
+import { loadProspectRecipients } from "@/lib/prospect-recipients";
+import { emailScreenAccess } from "./email-anywhere";
 import type { ActionResult } from "./partners";
 
 /**
@@ -13,11 +15,19 @@ import type { ActionResult } from "./partners";
  * person, and consent.
  */
 
-const AUDIENCES = ["Lead", "Contact", "CampaignMember"] as const;
+const AUDIENCES = ["Lead", "Contact", "CampaignMember", "Prospect"] as const;
 
 /** The permission that emails each kind of person. */
 function writePermission(audience: Audience): string {
-  return audience === "Contact" ? PERMISSIONS.ACCOUNT_WRITE : PERMISSIONS.LEAD_WRITE;
+  return audience === "Contact" ? PERMISSIONS.ACCOUNT_WRITE : audience === "Prospect" ? PERMISSIONS.PROSPECT_WRITE : PERMISSIONS.LEAD_WRITE;
+}
+
+/**
+ * Whether this person may mass-email this kind of person: the same switch and
+ * roles as the record pages' Emails panel (Settings -> Email on screens).
+ */
+async function mayMassEmail(audience: Audience): Promise<boolean> {
+  return (await emailScreenAccess(audience)) !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +218,9 @@ async function loadPeople(audience: Audience, ids: string[]) {
       consented: Boolean(c.communicationConsent), optOut: Boolean(c.emailOptOut),
     }));
   }
+  if (audience === "Prospect") {
+    return (await loadProspectRecipients(db, ids)).map((p) => ({ ...p, consented: null as boolean | null, optOut: p.archived }));
+  }
   const { data } = await db
     .from("campaign_member")
     .select("id, firstName, lastName, companyName, email, emailOptOut, emailBounced")
@@ -272,6 +285,7 @@ export async function sendMassEmail(input: z.infer<typeof sendSchema>): Promise<
   const d = parsed.data;
   const auth = await authorize(writePermission(d.audience));
   if (!auth.ok) return { ok: false, error: auth.error };
+  if (!(await mayMassEmail(d.audience))) return { ok: false, error: "Email is switched off for you here. An administrator can change it in Settings, Email on screens." };
 
   // Worked out again here rather than trusted from the screen.
   const audience = await getAudience(d.audience, d.ids, d.consentedOnly);
@@ -316,6 +330,22 @@ export async function sendMassEmail(input: z.infer<typeof sendSchema>): Promise<
     progressTotal: result.data.queued,
     createdById: auth.user.id,
   });
+  // Emailing a prospect is an outreach touch, as it is from the prospect's page.
+  if (d.audience === "Prospect" && sendable.length) {
+    const admin = supabaseAdmin();
+    const { data: entries } = await admin.from("prospect_campaign_entry").select("\"prospectId\", \"campaignId\"").in("prospectId", sendable.map((a) => a.id));
+    const campaigns = new Map<string, string[]>();
+    for (const e of entries ?? []) campaigns.set(e.prospectId as string, [...(campaigns.get(e.prospectId as string) ?? []), e.campaignId as string]);
+    const now = new Date().toISOString();
+    await admin.from("prospect_activity").insert(sendable.map((a) => {
+      const only = campaigns.get(a.id)?.length === 1 ? campaigns.get(a.id)![0] : null;
+      return { prospectId: a.id, campaignId: only, type: "EMAIL_SENT", channel: "business_email", content: `Subject: ${d.subject} (sent to ${sendable.length})`, actorId: auth.user.id };
+    }));
+    for (const a of sendable) {
+      const only = campaigns.get(a.id)?.length === 1 ? campaigns.get(a.id)![0] : null;
+      if (only) await admin.rpc("prospect_campaign_touch", { p_campaign: only, p_prospect: a.id, p_at: now });
+    }
+  }
   revalidatePath("/leads/email/sends");
   return { ok: true, data: { ...result.data, skipped: result.data.skipped + skippedHere.length } };
 }
@@ -348,5 +378,5 @@ export async function setContactEmailOptOut(contactId: string, optOut: boolean):
 /** Whether someone may send to a kind of person at all, for the Email buttons. */
 export async function canEmail(audience: Audience): Promise<boolean> {
   const me = await requireUser();
-  return can(me, writePermission(audience));
+  return can(me, writePermission(audience)) && (await mayMassEmail(audience));
 }

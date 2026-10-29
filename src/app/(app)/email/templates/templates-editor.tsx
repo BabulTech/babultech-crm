@@ -11,6 +11,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
   Lead: "Leads",
   Contact: "Contacts",
   CampaignMember: "Campaign members",
+  Prospect: "Prospects",
 };
 
 type Draft = { id: string | null; name: string; audience: string; subject: string; body: string; active: boolean };

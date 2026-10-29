@@ -60,6 +60,18 @@ async function mayUse(me: AuthedUser, setting: EmailScreenSetting): Promise<bool
   return Boolean(data?.roleId && setting.roleIds.includes(String(data.roleId)));
 }
 
+/**
+ * The setting for a kind of record when the signed-in person may email it,
+ * otherwise null. Mass email from lists uses the same rule as record pages.
+ */
+export async function emailScreenAccess(entityType: string): Promise<{ defaultSenderId: string | null; defaultTemplateId: string | null } | null> {
+  if (!isEmailScreen(entityType)) return null;
+  const me = await requireUser();
+  const setting = await readSetting(entityType);
+  if (!(await mayUse(me, setting))) return null;
+  return { defaultSenderId: setting.defaultSenderId, defaultTemplateId: setting.defaultTemplateId };
+}
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------

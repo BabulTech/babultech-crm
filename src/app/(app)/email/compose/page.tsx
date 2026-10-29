@@ -4,11 +4,13 @@ import { getAudience, listTemplates, listSenders } from "@/server/communications
 import { listContacts } from "@/server/crm";
 import { listCampaignMembers } from "@/server/campaign-members";
 import { PageHeader, Forbidden, Alert, Button } from "@/components/ui";
+import { emailScreenAccess } from "@/server/email-anywhere";
 import { ComposeForm } from "./compose-form";
 
-type Audience = "Lead" | "Contact" | "CampaignMember";
+type Audience = "Lead" | "Contact" | "CampaignMember" | "Prospect";
 
 const BACK: Record<Audience, { href: string; label: string; noun: string }> = {
+  Prospect: { href: "/prospects", label: "Back to prospects", noun: "prospects" },
   Lead: { href: "/leads", label: "Back to leads", noun: "leads" },
   Contact: { href: "/contacts", label: "Back to contacts", noun: "contacts" },
   CampaignMember: { href: "/campaign-members", label: "Back to campaign members", noun: "campaign members" },
@@ -26,9 +28,18 @@ export default async function ComposePage({
 }) {
   const me = await requireUser();
   const params = await searchParams;
-  const type = (["Lead", "Contact", "CampaignMember"].includes(params.type ?? "") ? params.type : "Lead") as Audience;
-  const allowed = type === "Contact" ? can(me, PERMISSIONS.ACCOUNT_WRITE) : can(me, PERMISSIONS.LEAD_WRITE);
+  const type = (["Lead", "Contact", "CampaignMember", "Prospect"].includes(params.type ?? "") ? params.type : "Lead") as Audience;
+  const allowed = type === "Contact" ? can(me, PERMISSIONS.ACCOUNT_WRITE) : type === "Prospect" ? can(me, PERMISSIONS.PROSPECT_WRITE) : can(me, PERMISSIONS.LEAD_WRITE);
   if (!allowed) return <Forbidden what={`emailing ${BACK[type].noun}`} />;
+  const access = await emailScreenAccess(type);
+  if (!access) {
+    return (
+      <>
+        <PageHeader backTo={BACK[type].href} backLabel={BACK[type].label} title={`Email ${BACK[type].noun}`} />
+        <Alert tone="warning">Email to {BACK[type].noun} is switched off for your role. An administrator can change it in Settings, Email on screens.</Alert>
+      </>
+    );
+  }
 
   let ids = (params.ids ?? "").split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s));
   // "Email these" on a list passes the list's filters rather than hundreds of
