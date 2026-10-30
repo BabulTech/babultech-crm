@@ -1,3 +1,4 @@
+import { FavoriteControl } from "@/components/favorite-control";
 import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -43,6 +44,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
         title={p.businessName}
         description={[p.industry, p.dataset?.name].filter(Boolean).join(" · ") || undefined}
       >
+        <FavoriteControl entityType="Prospect" entityId={p.id} label={p.businessName} />
         <Badge tone={p.status === "QUALIFIED" ? "success" : p.status === "ARCHIVED" ? "neutral" : "info"}>{PROSPECT_STATUS_LABELS[p.status] ?? p.status}</Badge>
       </PageHeader>
 

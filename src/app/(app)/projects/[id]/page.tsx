@@ -1,3 +1,4 @@
+import { getTimeEntryOptions } from "@/server/timesheets";
 import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
@@ -53,7 +54,7 @@ export default async function ProjectWorkspacePage({
   //
   // The notFound() check still happens before anything reads `project`; it just
   // no longer holds up the other six queries while it waits.
-  const [notes, documents, workLog, project, burn, options, audit, vaultCount] =
+  const [notes, documents, workLog, project, burn, options, audit, vaultCount, timeOptions] =
     await Promise.all([
       listNotes("Project", id),
       listDocuments("Project", id),
@@ -68,6 +69,8 @@ export default async function ProjectWorkspacePage({
       getAuditTrail("Project", id, 10),
       // Null for anyone without vault access, who sees no link at all.
       countProjectSecrets(id),
+      // What this person can log time on, for the shared time entry form.
+      getTimeEntryOptions(),
     ]);
 
   if (!project) notFound();
@@ -251,7 +254,7 @@ export default async function ProjectWorkspacePage({
               <WorkLogPanel
                 projectId={project.id}
                 log={workLog}
-                tasks={(s.tasks as never as { id: string; name: string }[]).map((t) => ({ id: t.id, name: t.name }))}
+                options={serialize(timeOptions) as never}
                 approvedHours={project.approvedHours ? Number(project.approvedHours) : null}
                 canLog={can(_me, PERMISSIONS.PROJECT_READ)}
               />

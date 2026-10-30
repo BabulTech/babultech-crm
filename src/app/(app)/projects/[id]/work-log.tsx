@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import {
   Card, CardHeader, CardTitle, CardContent, Button, Alert, Field,
-  Input, Select, Textarea, Badge, statusTone, StatTile, EmptyState,
+  Badge, statusTone, StatTile, EmptyState,
 } from "@/components/ui";
+import { RichText } from "@/components/rich-text";
+import { TimeEntryForm, type TimeEntryOptions } from "@/components/time-entry-form";
 import { Sparkline } from "@/components/sparkline";
-import { logProjectDay } from "@/server/timesheets";
 import { formatDate, formatNumber, humanize, cn } from "@/lib/utils";
 
 /** Entries listed before "Show all". */
@@ -51,39 +52,6 @@ function Section({ id, title, subtitle, children }: { id: string; title: string;
     </Card>
   );
 }
-
-/** Client-only counter for line keys; never persisted. */
-let lineSeq = 0;
-
-/**
- * One row of the day's work: a task, the hours on it, and what was done.
- *
- * `key` is a client-only id for React's list reconciliation. Using the array
- * index instead would make deleting a middle row re-key every row after it,
- * which throws away the text already typed into them.
- *
- * Declared at module scope rather than inside the component: the lazy
- * useState initialiser below runs on the first render, so a `const blankLine`
- * defined further down the component body would still be in its temporal dead
- * zone at that moment and throw.
- */
-type Line = {
-  key: string;
-  projectTaskId: string;
-  hours: string;
-  description: string;
-  billable: boolean;
-  completeTask: boolean;
-};
-
-const blankLine = (): Line => ({
-  key: `l${lineSeq++}`,
-  projectTaskId: "",
-  hours: "",
-  description: "",
-  billable: false,
-  completeTask: false,
-});
 
 interface Entry {
   id: string;
@@ -139,23 +107,20 @@ export interface WorkLog {
 export function WorkLogPanel({
   projectId,
   log,
-  tasks,
+  options,
   approvedHours,
   canLog,
 }: {
   projectId: string;
   log: WorkLog;
-  tasks: { id: string; name: string }[];
+  /** What this person can log time on; the form is locked to this project. */
+  options: TimeEntryOptions;
   /** The project's approved budget, for the burn figure. Null when unbudgeted. */
   approvedHours: number | null;
   canLog: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const [lines, setLines] = useState<Line[]>(() => [blankLine()]);
-
   const total = Number(log.totalHours);
   const billable = Number(log.billableHours);
   const nonBillable = Number(log.nonBillableHours);
@@ -164,47 +129,6 @@ export function WorkLogPanel({
   const burnPercent =
     approvedHours && approvedHours > 0 ? (total / approvedHours) * 100 : null;
   const overBudget = burnPercent !== null && burnPercent > 100;
-
-  const dayTotal = lines.reduce((sum, l) => sum + (Number(l.hours) || 0), 0);
-  const completing = lines.filter((l) => l.completeTask && l.projectTaskId).length;
-
-  function setLine(key: string, patch: Partial<Line>) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  }
-
-  function submit(formData: FormData) {
-    setError(null);
-
-    const filled = lines.filter((l) => l.hours || l.description);
-    if (filled.length === 0) {
-      setError("Add at least one line before saving.");
-      return;
-    }
-
-    start(async () => {
-      const result = await logProjectDay({
-        projectId,
-        workDate: String(formData.get("workDate")) as never,
-        lines: filled.map((l) => ({
-          projectTaskId: l.projectTaskId || null,
-          hours: l.hours as never,
-          description: l.description,
-          billable: l.billable,
-          completeTask: l.completeTask,
-        })),
-      } as never);
-
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-
-      // A full reload rather than router.refresh(), which did not take effect
-      // on the live build, so a saved entry did not appear. The tab is kept in
-      // the address, so the reload lands back here.
-      window.location.reload();
-    });
-  }
 
   const shownEntries = showAll ? log.entries : log.entries.slice(0, ENTRIES_SHOWN);
 
@@ -216,7 +140,7 @@ export function WorkLogPanel({
           {formatNumber(total, 1)}h logged · {formatNumber(Number(log.thisWeekHours), 1)}h this week
         </p>
         {canLog && (
-          <Button type="button" onClick={() => { setAdding(!adding); setError(null); }}>
+          <Button type="button" onClick={() => setAdding(!adding)}>
             {adding ? "Cancel" : <><Plus className="h-4 w-4" /> Log work</>}
           </Button>
         )}
@@ -228,167 +152,12 @@ export function WorkLogPanel({
             <CardTitle>Log work</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={submit} className="space-y-4">
-              {error && <Alert tone="danger">{error}</Alert>}
-
-              <div className="flex flex-wrap items-end gap-4">
-                <Field label="Date" required
-                  help="The day the work happened, not the day you are recording it. Every line below belongs to this date.">
-                  <Input
-                    name="workDate"
-                    type="date"
-                    required
-                    autoFocus
-                    className="w-44"
-                    // Today by default, because that is the answer nine times
-                    // out of ten. Future dates are refused.
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    max={new Date().toISOString().slice(0, 10)}
-                  />
-                </Field>
-
-                {/* The running total sits beside the date rather than under the
-                    last line: it is the number someone checks before saving,
-                    and at the bottom of a four-line form it would be below the
-                    fold on a laptop. */}
-                <div className="pb-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Day total
-                  </p>
-                  <p className={cn(
-                    "text-lg font-semibold tabular-nums",
-                    dayTotal > 24 && "text-destructive",
-                  )}>
-                    {formatNumber(dayTotal, 2)}h
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {lines.map((line, i) => (
-                  <div key={line.key} className="rounded-md border bg-muted/20 p-3">
-                    <div className="grid gap-3 sm:grid-cols-12">
-                      <div className="sm:col-span-5">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Task
-                        </label>
-                        <Select
-                          value={line.projectTaskId}
-                          onChange={(e) => setLine(line.key, { projectTaskId: e.target.value })}
-                          className="mt-1"
-                        >
-                          <option value="">The project generally</option>
-                          {tasks.map((t) => (
-                            <option key={t.id} value={t.id}>{t.name}</option>
-                          ))}
-                        </Select>
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Hours
-                        </label>
-                        <Input
-                          type="number"
-                          step="0.25"
-                          min="0.25"
-                          max="24"
-                          value={line.hours}
-                          onChange={(e) => setLine(line.key, { hours: e.target.value })}
-                          placeholder="2"
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-5">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          What you did
-                        </label>
-                        <Input
-                          value={line.description}
-                          onChange={(e) => setLine(line.key, { description: e.target.value })}
-                          placeholder="Fixed the duplicate-receipt bug"
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-4">
-                      <label className="flex items-center gap-2 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={line.billable}
-                          onChange={(e) => setLine(line.key, { billable: e.target.checked })}
-                          className="h-3.5 w-3.5 rounded border-input"
-                        />
-                        Billable
-                      </label>
-
-                      {/* Only offered on a line that names a task - "mark the
-                          project generally as complete" is not a thing. */}
-                      {line.projectTaskId && (
-                        <label className="flex items-center gap-2 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={line.completeTask}
-                            onChange={(e) => setLine(line.key, { completeTask: e.target.checked })}
-                            className="h-3.5 w-3.5 rounded border-input"
-                          />
-                          Mark this task complete
-                        </label>
-                      )}
-
-                      {lines.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="ml-auto h-7 px-2 text-xs text-muted-foreground"
-                          onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                          aria-label={`Remove line ${i + 1}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> Remove
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setLines((prev) => [...prev, blankLine()])}
-              >
-                <Plus className="h-4 w-4" /> Add another task
-              </Button>
-
-              <div className="flex items-center gap-3 border-t pt-4">
-                <Button type="submit" disabled={pending || dayTotal > 24}>
-                  {pending
-                    ? "Saving…"
-                    : `Save ${lines.filter((l) => l.hours || l.description).length} entr${
-                        lines.filter((l) => l.hours || l.description).length === 1 ? "y" : "ies"
-                      }`}
-                </Button>
-                <Button type="button" variant="outline"
-                  onClick={() => { setAdding(false); setError(null); setLines([blankLine()]); }}>
-                  Cancel
-                </Button>
-
-                {completing > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {completing} task{completing === 1 ? "" : "s"} will be marked complete.
-                  </p>
-                )}
-                {dayTotal > 24 && (
-                  <p className="text-xs text-destructive">
-                    That is more than 24 hours in one day.
-                  </p>
-                )}
-              </div>
-            </form>
+            {/* The same form as My timesheet, so an entry looks and behaves
+                the same whichever door it came through. A full reload after
+                saving, because router.refresh() did not take effect on the
+                live build; the tab is kept in the address. */}
+            <TimeEntryForm options={options} lockProjectId={projectId}
+              onSaved={() => window.location.reload()} onCancel={() => setAdding(false)} />
           </CardContent>
         </Card>
       )}
@@ -431,7 +200,7 @@ export function WorkLogPanel({
                     {formatNumber(Number(e.hours), 2)}h
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm">{e.description}</span>
+                    <RichText value={e.description} />
                     <span className="mt-0.5 block text-xs text-muted-foreground">
                       {e.user?.fullName ?? "Unknown"}
                       {e.task && (

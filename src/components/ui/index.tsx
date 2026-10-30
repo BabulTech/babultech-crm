@@ -1,4 +1,5 @@
 import * as React from "react";
+import { PageStar } from "@/components/favorites-menu";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "@radix-ui/react-slot";
 import { Inbox, Info, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -318,7 +319,7 @@ export function PageHeader({
       {backTo && <BackLink href={backTo} label={backLabel ?? "Back"} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">{title} <PageStar title={title} /></h1>
         {description && (
           <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             {description}

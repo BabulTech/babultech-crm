@@ -16,6 +16,7 @@ import { signOutAction } from "@/lib/sign-out-action";
 import { MobileNav } from "./mobile-nav";
 import { CommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
+import { FavoritesMenu, SidebarFavorites } from "./favorites-menu";
 
 interface NavItem {
   href: string;
@@ -326,7 +327,8 @@ export function AppShell({
             <X className="h-5 w-5" />
           </button>
           {/* On a phone the bell sits in the top bar instead. */}
-          <div className={cn("hidden flex-1 justify-end pr-1 lg:flex", railed && "lg:hidden")}>
+          <div className={cn("hidden flex-1 items-center justify-end pr-1 lg:flex", railed && "lg:hidden")}>
+            <FavoritesMenu permissions={permissions} />
             <NotificationBell />
           </div>
           {/* Desktop only: the mobile sidebar closes with the X above. */}
@@ -358,7 +360,8 @@ export function AppShell({
           </button>
         )}
         {railed && (
-          <div className="hidden shrink-0 justify-center border-b py-1.5 lg:flex">
+          <div className="hidden shrink-0 flex-col items-center border-b py-1.5 lg:flex">
+            <FavoritesMenu permissions={permissions} />
             <NotificationBell />
           </div>
         )}
@@ -372,6 +375,7 @@ export function AppShell({
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <SidebarFavorites railed={railed} onNavigate={() => setOpen(false)} />
           {nav.map((group) => {
             // The group holding the current page is forced open, so you can
             // always see where you are even if it was collapsed last visit.
@@ -510,6 +514,7 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <span className="flex-1 font-semibold">BabulTech CRM</span>
+          <FavoritesMenu permissions={permissions} />
           <NotificationBell />
         </header>
         <main className="flex-1 p-5 pb-24 lg:p-8 lg:pb-8">

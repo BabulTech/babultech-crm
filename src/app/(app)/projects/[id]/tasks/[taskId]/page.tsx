@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RichText } from "@/components/rich-text";
+import { richTextToPlain } from "@/lib/rich-text";
 import { ArrowLeft, ListTree, Clock } from "lucide-react";
 import { getTask } from "@/server/projects";
 import { listNotes } from "@/server/notes";
@@ -287,7 +288,7 @@ export default async function TaskDetailPage({
                     <TD className="whitespace-nowrap text-sm">{formatDate(l.workDate)}</TD>
                     <TD className="text-right tabular">{formatNumber(l.hours, 2)}</TD>
                     <TD className="max-w-[280px] truncate text-sm text-muted-foreground">
-                      {l.description}
+                      {richTextToPlain(l.description)}
                     </TD>
                     <TD>
                       <Badge tone={statusTone(l.approvalStatus)}>

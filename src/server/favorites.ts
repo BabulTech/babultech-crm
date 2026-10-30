@@ -68,3 +68,75 @@ export async function listFavorites(limit = 30): Promise<FavoriteRecord[]> {
       entityId: r.entityId as string,
     }));
 }
+
+// ---------------------------------------------------------------------------
+// Favourite screens and actions
+// ---------------------------------------------------------------------------
+
+export interface FavoriteLink { id: string; kind: "SCREEN" | "ACTION"; href: string; label: string }
+export interface Shortcuts { links: FavoriteLink[]; records: FavoriteRecord[] }
+
+/** Null for portal logins, who have no favourites. */
+export async function listShortcuts(): Promise<Shortcuts | null> {
+  try {
+    const me = await requireUser();
+    if (me.userType !== "INTERNAL") return null;
+    const db = await supabaseServer();
+    const [{ data }, records] = await Promise.all([
+      db.from("favorite_link").select("id, kind, href, label").order("position").order("createdAt"),
+      listFavorites(30),
+    ]);
+    return { links: (data ?? []) as FavoriteLink[], records };
+  } catch {
+    return null;
+  }
+}
+
+async function mayChange(): Promise<ActionResult | null> {
+  const auth = await authorize();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  if (auth.user.userType !== "INTERNAL") return { ok: false, error: "Favourites are for our team." };
+  if (await getViewAs()) return { ok: false, error: "View as is read-only." };
+  return null;
+}
+
+export async function toggleShortcut(kind: "SCREEN" | "ACTION", href: string, label: string, on: boolean): Promise<ActionResult> {
+  const refused = await mayChange();
+  if (refused) return refused;
+  if (!href.startsWith("/") || href.startsWith("//") || href.length > 1000) return { ok: false, error: "That cannot be a favourite." };
+  const db = await supabaseServer();
+  if (!on) {
+    const { error } = await db.from("favorite_link").delete().eq("href", href);
+    return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
+  }
+  const { data: last } = await db.from("favorite_link").select("position").order("position", { ascending: false }).limit(1).maybeSingle();
+  const { error } = await db.from("favorite_link").upsert(
+    { kind, href, label: label.trim().slice(0, 120) || "Untitled", position: Number(last?.position ?? 0) + 1 },
+    { onConflict: "userId,href" },
+  );
+  return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
+}
+
+export async function renameShortcut(id: string, label: string): Promise<ActionResult> {
+  const refused = await mayChange();
+  if (refused) return refused;
+  const name = label.trim().slice(0, 120);
+  if (!name) return { ok: false, error: "Give it a name." };
+  const { error } = await (await supabaseServer()).from("favorite_link").update({ label: name }).eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
+}
+
+/** Moves a favourite one place up or down, renumbering the whole list. */
+export async function moveShortcut(id: string, direction: -1 | 1): Promise<ActionResult> {
+  const refused = await mayChange();
+  if (refused) return refused;
+  const db = await supabaseServer();
+  const { data } = await db.from("favorite_link").select("id").order("position").order("createdAt");
+  const ids = (data ?? []).map((r) => r.id as string);
+  const i = ids.indexOf(id);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= ids.length) return { ok: true, data: undefined };
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  await Promise.all(ids.map((rowId, position) => db.from("favorite_link").update({ position }).eq("id", rowId)));
+  return { ok: true, data: undefined };
+}

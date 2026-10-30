@@ -10,10 +10,10 @@ import { WeekCommitment } from "./week-commitment";
 export default async function TimesheetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; log?: string }>;
 }) {
   await requireUser();
-  const { week } = await searchParams;
+  const { week, log } = await searchParams;
 
   // Monday of the chosen week (default this week, Pakistan time), as plain dates
   // so the server's own time zone cannot shift it a day.
@@ -49,6 +49,7 @@ export default async function TimesheetsPage({
       )}
 
       <TimesheetClient
+        openForm={log === "1"}
         weekStart={weekStartISO}
         entries={serialize(entries) as unknown as Entry[]}
         options={serialize(options) as unknown as EntryOptions}

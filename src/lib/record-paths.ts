@@ -3,6 +3,7 @@
  * recently opened records and favourites.
  */
 export const RECORD_PATHS: Record<string, string> = {
+  Prospect: "/prospects/",
   Lead: "/leads/",
   Account: "/accounts/",
   Contact: "/contacts/",
@@ -16,6 +17,7 @@ export const RECORD_PATHS: Record<string, string> = {
 };
 
 export const RECORD_TYPE_LABEL: Record<string, string> = {
+  Prospect: "Prospect",
   Lead: "Lead",
   Account: "Account",
   Contact: "Contact",

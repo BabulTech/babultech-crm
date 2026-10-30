@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, Badge, Button, Card, CardContent, Input, Table, THead, TBody, TR, TH, TD } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
+import { RichText } from "@/components/rich-text";
 import { decideTimesheet, getTimesheetEntries, type TeamWeekRow } from "@/server/weekly-timesheets";
 
 const STATUS: Record<TeamWeekRow["status"], { label: string; tone: "neutral" | "warning" | "success" | "danger" }> = {
@@ -74,11 +75,11 @@ function Row({ r, weekStart }: { r: TeamWeekRow; weekStart: string }) {
               {!entries ? <p className="text-sm text-muted-foreground">Loading…</p> : entries.length === 0 ? <p className="text-sm text-muted-foreground">No time logged this week.</p> : (
                 <ul className="space-y-1 text-sm">
                   {entries.map((e) => (
-                    <li key={e.id} className="flex gap-3">
+                    <li key={e.id} className="flex items-start gap-3">
                       <span className="w-24 shrink-0 text-muted-foreground">{formatDate(e.workDate)}</span>
                       <span className="w-12 shrink-0 text-right">{e.hours}h</span>
                       <span className="w-40 shrink-0 truncate">{e.on}</span>
-                      <span className="text-muted-foreground">{e.description}</span>
+                      <RichText value={e.description} className="min-w-0 flex-1 text-muted-foreground" />
                     </li>
                   ))}
                 </ul>
