@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -306,7 +307,7 @@ export function ExpenseBulkTable({
                             </Link>
                           </Button>
                         )}
-                        {canDelete && <DeleteConfirm type="Expense" id={e.id} name={e.expenseNumber} onDone={() => window.location.reload()} />}
+                        {canDelete && <DeleteConfirm type="Expense" id={e.id} name={e.expenseNumber} onDone={() => softReload()} />}
                       </div>
                     );
                   })()}

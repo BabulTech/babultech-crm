@@ -1,3 +1,4 @@
+import { SoftNavigationBridge } from "@/components/soft-navigation";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SoftNavigationBridge />{children}</body>
     </html>
   );
 }

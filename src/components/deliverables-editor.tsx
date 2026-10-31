@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
@@ -36,7 +37,7 @@ export function DeliverablesEditor({
     start(async () => {
       const result = await fn();
       if (!result.ok && "error" in result) return window.alert(result.error);
-      window.location.reload();
+      softReload();
     });
 
   const save = () =>
@@ -53,7 +54,7 @@ export function DeliverablesEditor({
         dueDate: draft.dueDate || null,
       });
       if (!result.ok) return setError(result.error);
-      window.location.reload();
+      softReload();
     });
 
   return (

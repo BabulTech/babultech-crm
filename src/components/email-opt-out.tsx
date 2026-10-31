@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useTransition } from "react";
 import { MailX, MailCheck } from "lucide-react";
@@ -22,7 +23,7 @@ export function EmailOptOutButton({ contactId, optedOut }: { contactId: string; 
           const result = await setContactEmailOptOut(contactId, !optedOut);
           if (!result.ok) return window.alert(result.error);
           // A full reload: see log-touch-button.tsx.
-          window.location.reload();
+          softReload();
         });
       }}
     >

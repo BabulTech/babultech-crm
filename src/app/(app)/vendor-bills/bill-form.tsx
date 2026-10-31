@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -125,7 +126,7 @@ export function BillForm({ options, bill }: { options: BillFormOptions; bill?: S
 
       if (result.ok) {
         // A full load: see components/log-touch-button.tsx.
-        window.location.href = `/vendor-bills/${result.data.id}`;
+        softGo(`/vendor-bills/${result.data.id}`);
       } else {
         setError(result.error);
       }

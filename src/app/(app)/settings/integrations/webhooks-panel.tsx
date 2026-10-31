@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/components/ui";
@@ -22,7 +23,7 @@ export function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
       const result = await fn();
       if (!result.ok) return setMessage({ tone: "danger", text: result.error ?? "That did not work." });
       setMessage({ tone: "success", text: done });
-      window.setTimeout(() => window.location.reload(), 600);
+      window.setTimeout(() => softReload(), 600);
     });
 
   const save = () => draft && act(() => saveWebhook(draft), draft.id ? "Webhook saved." : "Webhook added.");
@@ -126,7 +127,7 @@ export function RetryButton({ id }: { id: string }) {
         start(async () => {
           const result = await retryDelivery(id);
           if (!result.ok) return window.alert(result.error);
-          window.location.reload();
+          softReload();
         })
       }
     >

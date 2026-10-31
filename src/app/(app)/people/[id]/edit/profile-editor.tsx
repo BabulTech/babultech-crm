@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Field, Select } from "@/components/ui";
@@ -29,7 +30,7 @@ export function ProfileEditor({ staffId, initial, reportingLine }: {
         const moved = await setReportsTo(staffId, reportsTo || null);
         if (!moved.ok) { setError(moved.error); return; }
       }
-      window.location.href = `/people/${staffId}`;
+      softGo(`/people/${staffId}`);
     });
   }
 

@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useMemo, useState, useTransition } from "react";
 import { GitMerge, Check } from "lucide-react";
@@ -61,7 +62,7 @@ export function RecordMergeForm({ entity, records }: { entity: MergeEntity; reco
     start(async () => {
       const result = await mergeRecords({ entity, survivorId, loserIds: losers.map((l) => l.id), values });
       if (!result.ok) return setError(result.error);
-      window.location.href = `${noun.path}/${result.data.survivorId}`;
+      softGo(`${noun.path}/${result.data.survivorId}`);
     });
   }
 

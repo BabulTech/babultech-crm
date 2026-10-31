@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 import { useState, useTransition } from "react";
 import { changeUserTeam, createUserTeam, setRoleInTeam, type getUserTeams } from "@/server/user-teams";
 import { Button, Card, CardContent, Input, Select, Alert } from "@/components/ui";
@@ -17,7 +18,7 @@ export function TeamEditor({ userId, data }: { userId: string; data: Awaited<Ret
   const [parts, setParts] = useState<Record<string, string>>(() => Object.fromEntries(data.memberships.map(m => [m.teamId, m.roleInTeam ?? ""])));
   // A full reload after saving: see components/log-touch-button.tsx.
   function run(action: () => Promise<{ error: string | null }>) {
-    start(async () => { try { const result = await action(); setError(result.error); if (!result.error) window.location.reload(); } catch { setError("Could not save. Refresh and check your access."); } });
+    start(async () => { try { const result = await action(); setError(result.error); if (!result.error) softReload(); } catch { setError("Could not save. Refresh and check your access."); } });
   }
   return <div className="mt-4 space-y-4">
     {error && <Alert tone="danger">{error}</Alert>}

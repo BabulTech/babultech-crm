@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -131,7 +132,7 @@ export function MemberActions({
           )}
         </Button>
         {canDelete && (
-          <DeleteConfirm type="CampaignMember" id={id} name={name} variant="button" onDone={() => { window.location.href = "/campaign-members"; }} />
+          <DeleteConfirm type="CampaignMember" id={id} name={name} variant="button" onDone={() => { softGo("/campaign-members"); }} />
         )}
       </div>
     </div>

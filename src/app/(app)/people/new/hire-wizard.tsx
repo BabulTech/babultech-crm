@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
@@ -80,7 +81,7 @@ export function HireWizard({ options }: { options: HiringOptions }) {
         setErrors(result.fieldErrors);
         return;
       }
-      window.location.href = `/people/contracts/${result.data.contractId}?new=1`;
+      softGo(`/people/contracts/${result.data.contractId}?new=1`);
     });
   }
 

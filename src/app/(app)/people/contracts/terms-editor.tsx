@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -30,7 +31,7 @@ export function TermsEditor({ mode, staffId, contractId, previousContractId, ini
         ? await createContract(staffId, input, previousContractId)
         : await updateContractTerms(contractId!, input, rebuild);
       if (!result.ok) { setError(result.error); setErrors(result.fieldErrors); return; }
-      window.location.href = `/people/contracts/${result.data.id}`;
+      softGo(`/people/contracts/${result.data.id}`);
     });
   }
 

@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
@@ -86,7 +87,7 @@ export function QuoteActions({
         } catch {
           // Without storage the note is lost; the reloaded page still says where the quote is.
         }
-        window.location.reload();
+        softReload();
       } else setError(result.error ?? "Something went wrong.");
     });
   };

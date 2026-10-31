@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -39,7 +40,7 @@ export function TaskList({ rows, canWrite, showAssignee }: { rows: Row[]; canWri
                 <input type="checkbox" aria-label={`Done: ${t.title}`} checked={t.status === "done"} disabled={!canWrite || pending}
                   onChange={(e) => start(async () => {
                     const r = await setProspectTaskDone(t.id, e.target.checked);
-                    if (r.ok) window.location.reload(); else setError(r.error);
+                    if (r.ok) softReload(); else setError(r.error);
                   })} />
               </TD>
               <TD>

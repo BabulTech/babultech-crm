@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
@@ -14,7 +15,7 @@ function DatasetForm({ id, name = "", description = "", onCancel }: { id: string
       const f = new FormData(e.currentTarget);
       start(async () => {
         const result = await saveDataset(id, { name: String(f.get("name") ?? ""), description: String(f.get("description") ?? "") });
-        if (result.ok) window.location.reload(); else setError(result.error);
+        if (result.ok) softReload(); else setError(result.error);
       });
     }}>
       {error && <Alert tone="danger">{error}</Alert>}
@@ -44,7 +45,7 @@ export function DatasetActions({ dataset }: { dataset: { id: string; name: strin
       {dataset.total === 0 && (
         <Button size="sm" variant="ghost" className="text-destructive" disabled={pending} onClick={() => {
           if (!window.confirm(`Delete the empty dataset "${dataset.name}"?`)) return;
-          start(async () => { const r = await deleteDataset(dataset.id); if (r.ok) window.location.reload(); else setError(r.error); });
+          start(async () => { const r = await deleteDataset(dataset.id); if (r.ok) softReload(); else setError(r.error); });
         }}>Delete</Button>
       )}
       {error && <span className="text-xs text-destructive">{error}</span>}

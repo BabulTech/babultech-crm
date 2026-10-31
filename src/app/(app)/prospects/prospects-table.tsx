@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -34,7 +35,7 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
     start(async () => {
       const result = await tagProspects([...selected], [tag]);
       if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
-      window.location.reload();
+      softReload();
     });
   }
 

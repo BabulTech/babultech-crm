@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useRef, useState, useTransition } from "react";
 import { ChevronDown, Copy, Check } from "lucide-react";
@@ -46,7 +47,7 @@ export function TemplateEditor({ template }: { template: Template }) {
     event.preventDefault();
     run(async () => {
       const result = await saveEmailTemplate({ key: template.key, ...current() });
-      if (result.ok) window.location.reload();
+      if (result.ok) softReload();
       else setError(result.error);
     });
   }
@@ -55,7 +56,7 @@ export function TemplateEditor({ template }: { template: Template }) {
     if (!window.confirm(`Put "${template.name}" back to the built-in wording? Your changes to it are discarded.`)) return;
     run(async () => {
       const result = await resetEmailTemplate(template.key);
-      if (result.ok) window.location.reload();
+      if (result.ok) softReload();
       else setError(result.error);
     });
   }

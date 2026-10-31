@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
@@ -26,7 +27,7 @@ export function CampaignForm({ values, onCancel, marketingCampaigns }: { values?
           name: get("name"), description: get("description"), status: get("status") as never, defaultChannel: get("defaultChannel") as never,
           followupDays: get("followupDays") as never, startDate: get("startDate"), endDate: get("endDate"), marketingCampaignId: get("marketingCampaignId"),
         });
-        if (result.ok) window.location.assign(`/prospects/campaigns/${result.data.id}`);
+        if (result.ok) softGo(`/prospects/campaigns/${result.data.id}`);
         else setError(result.error);
       });
     }}>

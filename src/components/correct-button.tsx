@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Textarea } from "@/components/ui";
@@ -19,7 +20,7 @@ export function CorrectButton({ type, id, inline = false }: { type: string; id: 
       setError(null);
       const result = await openCorrection({ type, id, reason });
       if (!result.ok) return setError(result.error);
-      window.location.href = result.data.editPath;
+      softGo(result.data.editPath);
     });
 
   if (!asking) {

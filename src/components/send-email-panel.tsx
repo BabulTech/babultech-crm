@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -78,7 +79,7 @@ export function SendEmailPanel({
       if (result.ok) {
         setSent(true);
         setOpen(false);
-        if (reloadOnSend) window.location.reload();
+        if (reloadOnSend) softReload();
         else router.refresh();
       } else {
         setError(result.error ?? "That did not send.");

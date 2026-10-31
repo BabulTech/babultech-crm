@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Textarea } from "@/components/ui";
@@ -17,7 +18,7 @@ export function DeliverableDecision({ id, name }: { id: string; name: string }) 
       setError(null);
       const result = await decideDeliverable(id, approve, comment);
       if (!result.ok) return setError(result.error);
-      window.location.reload();
+      softReload();
     });
 
   return (

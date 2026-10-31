@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -54,5 +55,5 @@ export function DeleteRecordButton({
     );
   }
 
-  return <DeleteConfirm type={type} id={id} name={name} variant="button" onDone={() => { window.location.href = listPath; }} />;
+  return <DeleteConfirm type={type} id={id} name={name} variant="button" onDone={() => { softGo(listPath); }} />;
 }

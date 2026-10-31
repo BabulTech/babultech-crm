@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -14,7 +15,7 @@ export function EntriesTable({ campaignId, rows, canWrite }: { campaignId: strin
   const [error, setError] = useState<string | null>(null);
   const run = (action: () => Promise<{ ok: boolean; error?: string }>) => start(async () => {
     const r = await action();
-    if (r.ok) window.location.reload();
+    if (r.ok) softReload();
     else setError(r.error ?? "Could not save.");
   });
   if (!rows.length) {
@@ -100,7 +101,7 @@ export function CampaignTeam({ campaignId, members, workers, canManage }: {
   const [role, setRole] = useState<"manager" | "member" | "viewer">("member");
   const set = (userId: string, r: "manager" | "member" | "viewer" | null) => start(async () => {
     const result = await setProspectCampaignMember(campaignId, userId, r);
-    if (result.ok) window.location.reload();
+    if (result.ok) softReload();
     else setError(result.error);
   });
   const onTeam = new Set(members.map((m) => m.userId));

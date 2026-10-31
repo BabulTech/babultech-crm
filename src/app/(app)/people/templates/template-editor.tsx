@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
@@ -24,7 +25,7 @@ export function TemplateEditor({ templates }: { templates: Template[] }) {
         active: form.get("templateActive") === "on",
       });
       if (!result.ok) { setError(result.error); return; }
-      window.location.reload();
+      softReload();
     });
   }
 

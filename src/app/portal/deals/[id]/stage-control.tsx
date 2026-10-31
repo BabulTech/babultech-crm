@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useEffect, useState, useTransition } from "react";
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select } from "@/components/ui";
@@ -68,7 +69,7 @@ export function PartnerStageControl({
       // A full reload rather than router.refresh(): in the production build a
       // refreshed page can arrive and not be shown (the React 19.2 fault
       // described in components/deal-product-services.tsx).
-      window.location.reload();
+      softReload();
     });
   }
 

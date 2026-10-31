@@ -1,4 +1,5 @@
 "use client";
+import { softReload, softGo } from "@/components/soft-navigation";
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
@@ -79,7 +80,7 @@ export function PartnerQuoteActions({
       } catch {
         // Without storage the note is lost; the reloaded page still says where the quote is.
       }
-      window.location.reload();
+      softReload();
     });
   };
 
@@ -87,7 +88,7 @@ export function PartnerQuoteActions({
     setError(null);
     startTransition(async () => {
       const result = await revisePartnerQuote(quoteId);
-      if (result.ok) window.location.assign(`/portal/quotes/${result.data.id}`);
+      if (result.ok) softGo(`/portal/quotes/${result.data.id}`);
       else setError(result.error);
     });
   }

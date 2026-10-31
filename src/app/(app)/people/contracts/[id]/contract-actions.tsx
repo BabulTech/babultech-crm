@@ -1,4 +1,5 @@
 "use client";
+import { softReload, softGo } from "@/components/soft-navigation";
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
@@ -46,7 +47,7 @@ export function ContractActions({ contract: c }: { contract: ContractSummary }) 
       const result = await action();
       if (!result.ok) { setError(result.error); return; }
       if (after) after(result);
-      else window.location.reload();
+      else softReload();
     });
 
   const issue = (email: boolean) =>
@@ -69,7 +70,7 @@ export function ContractActions({ contract: c }: { contract: ContractSummary }) 
             <Input readOnly value={link.url} name="signingLink" onFocus={(e) => e.currentTarget.select()} />
             <div className="flex gap-2">
               <Button type="button" size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(link.url).catch(() => {}); setCopied(true); }}>{copied ? "Copied" : "Copy link"}</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>Done</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => softReload()}>Done</Button>
             </div>
           </div>
         )}
@@ -253,5 +254,5 @@ export function ContractTextEditor({ contractId, body, notes }: { contractId: st
 
 /** Delete, for the Super Admin: the shared confirmation, then back to the person. */
 export function ContractDeleteButton({ contractId, name, staffId }: { contractId: string; name: string; staffId: string; blocker?: string | null }) {
-  return <DeleteConfirm type="EmploymentContract" id={contractId} name={name} variant="button" onDone={() => { window.location.href = `/people/${staffId}`; }} />;
+  return <DeleteConfirm type="EmploymentContract" id={contractId} name={name} variant="button" onDone={() => { softGo(`/people/${staffId}`); }} />;
 }

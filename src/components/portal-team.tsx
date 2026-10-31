@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Table, THead, TBody, TR, TH, TD } from "@/components/ui";
@@ -19,7 +20,7 @@ export function PortalTeam({ team, isAdmin, adminMeans }: { team: TeamMember[]; 
       setMessage(null);
       const result = await setPortalMember(m.id, role, active);
       if (!result.ok) return setMessage({ tone: "danger", text: result.error });
-      window.location.reload();
+      softReload();
     });
 
   const send = () =>
@@ -34,7 +35,7 @@ export function PortalTeam({ team, isAdmin, adminMeans }: { team: TeamMember[]; 
           : `The login is ready, but the email could not be sent. Ask us to resend ${invite.firstName}'s sign-in details.`,
       });
       setInvite({ firstName: "", lastName: "", email: "", role: "USER" });
-      window.setTimeout(() => window.location.reload(), 1500);
+      window.setTimeout(() => softReload(), 1500);
     });
 
   return (

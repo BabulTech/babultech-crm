@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -17,7 +18,7 @@ export function RecycleActions({ type, id, name, canErase }: { type: RecycleType
         router.refresh();
         return;
       }
-      window.location.reload();
+      softReload();
     });
 
   return (

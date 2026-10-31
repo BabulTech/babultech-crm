@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
@@ -38,7 +39,7 @@ export function ReferredByPicker({
       setEditing(false);
       setTerm("");
       // A full reload: see log-touch-button.tsx.
-      window.location.reload();
+      softReload();
     });
 
   if (!editing) {

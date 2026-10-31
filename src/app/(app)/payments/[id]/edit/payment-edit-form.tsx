@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Card, CardContent, Input, Select, Textarea } from "@/components/ui";
@@ -37,7 +38,7 @@ export function PaymentEditForm({
         ...(amountLocked ? {} : { amount: Number(v.amount) }),
       });
       if (!result.ok) return setError(result.error);
-      window.location.href = `/payments/${id}`;
+      softGo(`/payments/${id}`);
     });
 
   return (

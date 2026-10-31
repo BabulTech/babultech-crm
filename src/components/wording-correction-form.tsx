@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Input, Textarea } from "@/components/ui";
@@ -25,7 +26,7 @@ export function WordingCorrectionForm({ type, id, fields, backTo }: { type: "Inv
       setError(null);
       const result = await correctDocumentWording({ type, id, values });
       if (!result.ok) return setError(result.error);
-      window.location.href = backTo;
+      softGo(backTo);
     });
 
   return (

@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -109,7 +110,7 @@ export function SecretForm({
 
       if (result.ok) {
         // A full load: router.push did not take effect on the live build.
-        window.location.assign(`/vault/${result.data.id}`);
+        softGo(`/vault/${result.data.id}`);
       } else {
         setError(result.error);
         setFieldErrors(result.fieldErrors ?? {});

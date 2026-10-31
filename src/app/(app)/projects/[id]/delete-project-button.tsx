@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { DeleteConfirm } from "@/components/delete-confirm";
 import { useCan } from "@/components/permissions";
@@ -7,5 +8,5 @@ import { useCan } from "@/components/permissions";
 export function DeleteProjectButton({ projectId, name }: { projectId: string; name: string }) {
   const canDelete = useCan("record:delete");
   if (!canDelete) return null;
-  return <DeleteConfirm type="Project" id={projectId} name={name} variant="button" onDone={() => { window.location.href = "/projects"; }} />;
+  return <DeleteConfirm type="Project" id={projectId} name={name} variant="button" onDone={() => { softGo("/projects"); }} />;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 import { useRef, useState, useTransition } from "react";
 import { Button, Input, Select, Textarea } from "@/components/ui";
 import { publicationInputToIso } from "@/lib/content-versions";
@@ -13,7 +14,7 @@ export function VersionActionForm({ kind, taskId, versionId, expected = 0, planR
  const input = kind === "version" ? { id: requestId.current, taskId, expected, planRevision, copy: get("copy"), assetUrl: get("assetUrl") || null, assetSha: get("assetSha") || null }
  : kind === "review" ? { id: requestId.current, versionId, stage, decision: get("decision"), evidence: get("evidence"), client: stage === "CLIENT" ? get("client") : null }
  : { id: requestId.current, versionId, url: get("url"), publishedAt: publicationInputToIso(get("publishedAt")) };
- start(async () => { try { const result = await mutateContentVersion(kind, input); if (!result.ok) { setMessage(result.error); return; } setSaved(true); window.location.reload(); /* a full load: see components/log-touch-button.tsx */ } catch { setMessage("Save could not be confirmed. Retry with the same details or refresh to check history."); } });
+ start(async () => { try { const result = await mutateContentVersion(kind, input); if (!result.ok) { setMessage(result.error); return; } setSaved(true); softReload(); /* a full load: see components/log-touch-button.tsx */ } catch { setMessage("Save could not be confirmed. Retry with the same details or refresh to check history."); } });
  }}>
  {kind === "version" && <>
  <label>Exact caption / script / copy<Textarea name="copy" required maxLength={20000} disabled={pending} /></label>

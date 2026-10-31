@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useRef, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
@@ -47,7 +48,7 @@ export function LogTouchButton({
       // client router intermittently dropped the refresh (in and out of a
       // transition alike), leaving the new touch unshown. A reload is about a
       // second and always shows it.
-      window.location.reload();
+      softReload();
     });
   }
 

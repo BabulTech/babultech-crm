@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { deleteImpact, deleteToRecycleBin } from "@/server/recycle-bin";
@@ -52,7 +53,7 @@ export function DeleteConfirm({
         return;
       }
       if (onDone) onDone();
-      else window.location.reload();
+      else softReload();
     });
 
   const trigger =

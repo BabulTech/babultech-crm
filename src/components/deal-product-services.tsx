@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
@@ -119,7 +120,7 @@ export function OpportunityProductServices({
       // development. A reload does not go through that path, and shows the deal
       // as it now stands, including the value tiles above that depend on these
       // lines.
-      window.location.reload();
+      softReload();
     });
   }
 

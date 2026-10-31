@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -157,7 +158,7 @@ export function WorkLogPanel({
                 saving, because router.refresh() did not take effect on the
                 live build; the tab is kept in the address. */}
             <TimeEntryForm options={options} lockProjectId={projectId}
-              onSaved={() => window.location.reload()} onCancel={() => setAdding(false)} />
+              onSaved={() => softReload()} onCancel={() => setAdding(false)} />
           </CardContent>
         </Card>
       )}

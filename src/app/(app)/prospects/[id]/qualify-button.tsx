@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { ArrowRightCircle } from "lucide-react";
@@ -41,7 +42,7 @@ export function QualifyButton({ prospectId, campaignId, people, owners, canOpenL
               prospectId, campaignId, ownerUserId: String(f.get("ownerUserId") ?? ""), personId: String(f.get("personId") ?? ""), note: String(f.get("note") ?? ""),
             });
             if (!r.ok) { setError(r.error); return; }
-            if (canOpenLeads) window.location.assign(`/leads/${r.data.leadId}`);
+            if (canOpenLeads) softGo(`/leads/${r.data.leadId}`);
             else setDone(r.data.leadNumber);
           });
         }}>

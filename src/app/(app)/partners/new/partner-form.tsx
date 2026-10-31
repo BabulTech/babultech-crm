@@ -1,4 +1,5 @@
 "use client";
+import { softGo } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -124,7 +125,7 @@ export function PartnerForm({ options, partner }: { options: Options; partner?: 
       const result = partner ? await updatePartner({ id: partner.id, ...(shared as object) } as never) : await createPartner(input);
       if (result.ok) {
         // A full load: see components/log-touch-button.tsx.
-        window.location.href = `/partners/${result.data.id}`;
+        softGo(`/partners/${result.data.id}`);
       } else {
         setError(result.error);
         setFieldErrors(result.fieldErrors ?? {});

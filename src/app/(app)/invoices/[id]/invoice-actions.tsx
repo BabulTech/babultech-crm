@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { sendInvoice, writeOffInvoice } from "@/server/billing";
@@ -36,7 +37,7 @@ export function InvoiceActions({
         setNotice("Marked as issued. Nothing has been emailed - use the Email panel to send it.");
         // A full load: in the production build a refreshed page can arrive and
         // not be shown (see components/log-touch-button.tsx).
-        window.setTimeout(() => window.location.reload(), 800);
+        window.setTimeout(() => softReload(), 800);
       } else setError(result.error);
     });
   }
@@ -53,7 +54,7 @@ export function InvoiceActions({
         setWritingOff(false);
         // A full load: in the production build a refreshed page can arrive and
         // not be shown (see components/log-touch-button.tsx).
-        window.setTimeout(() => window.location.reload(), 800);
+        window.setTimeout(() => softReload(), 800);
       } else setError(result.error);
     });
   }

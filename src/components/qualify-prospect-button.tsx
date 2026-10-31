@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useTransition } from "react";
 import { UserCheck } from "lucide-react";
@@ -17,7 +18,7 @@ export function QualifyProspectButton({ leadId }: { leadId: string }) {
           const result = await qualifyProspect(leadId);
           if (!result.ok) window.alert(result.error);
           // A full reload: see log-touch-button.tsx.
-          else window.location.reload();
+          else softReload();
         })
       }
     >

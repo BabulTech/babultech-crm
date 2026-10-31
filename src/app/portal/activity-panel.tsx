@@ -1,4 +1,5 @@
 "use client";
+import { softReload } from "@/components/soft-navigation";
 
 import { useState, useTransition } from "react";
 import { CalendarClock, Check, Mail, MessageSquare, Phone, Users, X } from "lucide-react";
@@ -48,7 +49,7 @@ export function PartnerActivityPanel({
   // A full reload after each change rather than router.refresh(): in the
   // production build a refreshed page can arrive and not be shown (the React
   // 19.2 fault described in components/deal-product-services.tsx).
-  const reload = () => window.location.reload();
+  const reload = () => softReload();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
