@@ -103,7 +103,7 @@ export function TimeEntryForm({
   }
 
   if (lockedOut) {
-    return <Alert tone="warning">You are not an active member of this project, so you cannot log time on it. Ask the project manager to add you to the team.</Alert>;
+    return <Alert tone="warning">You cannot log time on this project. It must be Planning, Active or At risk, and you must be on its team, be its manager, or have a task on it.</Alert>;
   }
 
   const bookedAgainst = entry

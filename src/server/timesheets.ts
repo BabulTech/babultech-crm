@@ -30,6 +30,7 @@ type Db = Pick<SupabaseClient, "from">;
  */
 
 const HOURS_PER_DAY_CEILING = 24;
+const CANNOT_LOG_MESSAGE = "You cannot log time on this project. It must be Planning, Active or At risk, and you must be on its team, be its manager, or have a task on it.";
 
 /**
  * Internal work is never billable, whatever the form sent.
@@ -119,6 +120,27 @@ function weekBounds(weekStart: Date): { from: Date; to: Date } {
   return { from, to };
 }
 
+/**
+ * Who may log time on a project: its team, its manager, and anyone with a task
+ * on it. The database requires an active team row for time, so a manager or
+ * assignee without one is added to the team here.
+ */
+async function ensureCanLog(projectId: string, userId: string): Promise<boolean> {
+  const admin = supabaseAdmin();
+  const [{ data: member }, { data: project }, { data: task }] = await Promise.all([
+    admin.from("project_member").select("id, active").eq("projectId", projectId).eq("userId", userId).maybeSingle(),
+    admin.from("project").select("projectManagerId").eq("id", projectId).maybeSingle(),
+    admin.from("project_task").select("id").eq("projectId", projectId).eq("assignedUserId", userId).limit(1).maybeSingle(),
+  ]);
+  if (member?.active) return true;
+  if (project?.projectManagerId !== userId && !task) return false;
+  const now = new Date().toISOString();
+  const { error } = member
+    ? await admin.from("project_member").update({ active: true, updatedAt: now }).eq("id", member.id)
+    : await admin.from("project_member").insert({ projectId, userId, active: true, projectRole: "Team member", updatedAt: now });
+  return !error;
+}
+
 export async function logTime(
   input: z.infer<typeof timeLogSchema>,
 ): Promise<ActionResult<{ id: string }>> {
@@ -206,19 +228,8 @@ export async function logTime(
     if (projectId) {
       // The rate snapshot comes from the project membership, so a later rate
       // change cannot rewrite what already-logged time was worth.
-      const { data: member } = await db
-        .from("project_member")
-        .select("active")
-        .eq("projectId", projectId)
-        .eq("userId", user.id)
-        .maybeSingle();
-
-      if (!member || !member.active) {
-        return {
-          ok: false,
-          error:
-            "You are not an active member of that project, so you cannot book time to it.",
-        };
+      if (!(await ensureCanLog(projectId, user.id))) {
+        return { ok: false, error: CANNOT_LOG_MESSAGE };
       }
 
       created = await createRecord<{ id: string; projectId: string | null }>("time_log", {
@@ -551,10 +562,23 @@ export async function getTimeEntryOptions() {
       .order("createdAt", { ascending: false }),
   ]);
 
+  // Projects they manage or have a task on count too, as they do when saving.
+  const admin = supabaseAdmin();
+  const { data: assigned } = await admin.from("project_task").select("projectId").eq("assignedUserId", user.id);
+  const assignedIds = [...new Set((assigned ?? []).map((t) => t.projectId as string).filter(Boolean))];
+  const { data: extra } = await admin
+    .from("project")
+    .select("id, name, projectNumber, projectType, status, deletedAt, tasks:project_task ( id, name, billable, assignedUserId, status, sortOrder )")
+    .is("deletedAt", null)
+    .in("status", ["PLANNING", "ACTIVE", "AT_RISK"])
+    .or(`projectManagerId.eq.${user.id}${assignedIds.length ? `,id.in.(${assignedIds.join(",")})` : ""}`);
+  const memberProjects = (membershipsRes.data ?? []).map((m) => one(m.project as never) as unknown as Record<string, unknown>);
+  const seen = new Set(memberProjects.map((p) => p?.id));
+  const all = [...memberProjects, ...((extra ?? []) as Record<string, unknown>[]).filter((p) => !seen.has(p.id))];
+
   // PostgREST returns embedded tasks unfiltered and unordered, so the
   // open-task filter and sort order are applied here.
-  const projects = (membershipsRes.data ?? []).map((m) => {
-    const project = one(m.project as never) as unknown as Record<string, unknown>;
+  const projects = all.map((project) => {
     const tasks = ((project?.tasks ?? []) as Record<string, unknown>[])
       .filter((t) => !["COMPLETED", "CANCELLED"].includes(String(t.status)))
       .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0));
