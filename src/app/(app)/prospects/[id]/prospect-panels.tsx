@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Star, Trash2, Plus, Pencil } from "lucide-react";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
@@ -9,15 +10,16 @@ import {
 
 type Result = { ok: true } | { ok: false; error: string };
 
-/** Runs a save and reloads the page on success; shows the error otherwise. */
+/** Runs a save and refreshes the data in place on success; shows the error otherwise. */
 function useSave() {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const run = (action: () => Promise<Result>) => {
     setError(null);
     start(async () => {
       const result = await action();
-      if (result.ok) window.location.reload();
+      if (result.ok) router.refresh();
       else setError(result.error);
     });
   };

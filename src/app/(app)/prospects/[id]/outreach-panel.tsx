@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { AddToCalendar } from "@/components/add-to-calendar";
@@ -16,7 +17,11 @@ interface Entry { campaignId: string; status: string; touchCount: number; lastCo
 interface Activity { id: string; type: string; channel: string | null; content: string | null; occurredAt: string; actor: string | null; person: { name: string; role: string | null } | null; campaign: string | null }
 interface Task { id: string; title: string; type: string; dueDate: string; priority: string; status: string; assignee: string | null; meetingAt?: string | null; durationMinutes?: number | null }
 
-const reload = () => window.location.reload();
+/** Fetches the page's data again in place: no reload, nothing flashes. */
+function useReload() {
+  const router = useRouter();
+  return () => router.refresh();
+}
 
 /** Working a prospect in a campaign: status, Quick log, and what happens next. */
 export function OutreachPanel({ prospectId, entries, campaignId, people, campaigns, nextProspect, canWrite }: {
@@ -28,9 +33,13 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
   nextProspect: { id: string; name: string } | null;
   canWrite: boolean;
 }) {
+  const reload = useReload();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const entry = entries.find((e) => e.campaignId === campaignId) ?? entries[0] ?? null;
+  // Shown at once; the save happens behind it, and a refusal puts it back.
+  const [status, setStatus] = useState(entry?.status ?? "");
+  useEffect(() => setStatus(entry?.status ?? ""), [entry?.status]);
   const fixed = (entry?.campaign?.defaultChannel ?? null) as Channel | null;
   const [channel, setChannel] = useState<Channel | "">(fixed ?? "");
   const primary = people.filter((p) => p.isPrimary);
@@ -109,11 +118,16 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="text-muted-foreground">Status</span>
           {canWrite ? (
-            <Select aria-label="Status in this campaign" value={entry.status} disabled={pending} className="h-8 w-52"
-              onChange={(e) => start(async () => { const r = await setCampaignStatus(entry.campaignId, prospectId, e.target.value as CampaignStatus); if (r.ok) reload(); else setError(r.error); })}>
+            <Select aria-label="Status in this campaign" value={status} className="h-8 w-52"
+              onChange={(e) => {
+                const next = e.target.value;
+                setStatus(next);
+                setError(null);
+                start(async () => { const r = await setCampaignStatus(entry.campaignId, prospectId, next as CampaignStatus); if (r.ok) reload(); else { setStatus(entry.status); setError(r.error); } });
+              }}>
               {CAMPAIGN_STATUSES.map((s) => <option key={s} value={s}>{CAMPAIGN_STATUS_LABELS[s]}</option>)}
             </Select>
-          ) : <Badge tone="info">{CAMPAIGN_STATUS_LABELS[entry.status as CampaignStatus]}</Badge>}
+          ) : <Badge tone="info">{CAMPAIGN_STATUS_LABELS[status as CampaignStatus]}</Badge>}
           <span className="text-muted-foreground">{entry.touchCount} touch{entry.touchCount === 1 ? "" : "es"} · last {entry.lastContactedAt ? formatDateTime(entry.lastContactedAt) : "never"}</span>
         </div>
 
@@ -132,11 +146,11 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
               {result.suggestion && canWrite && (
                 <Button size="sm" disabled={pending} onClick={() => start(async () => {
                   const r = await setCampaignStatus(entry.campaignId, prospectId, result.suggestion!);
-                  if (r.ok) reload(); else setError(r.error);
+                  if (r.ok) { setResult(null); reload(); } else setError(r.error);
                 })}>Move to {CAMPAIGN_STATUS_LABELS[result.suggestion]}</Button>
               )}
               {nextProspect && <Button size="sm" variant="outline" asChild><a href={`/prospects/${nextProspect.id}?campaign=${entry.campaignId}`}>Next: {nextProspect.name}</a></Button>}
-              <Button size="sm" variant="ghost" onClick={reload}>Done</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setResult(null); reload(); }}>Done</Button>
             </div>
           </Alert>
         ) : canWrite && (
@@ -188,6 +202,7 @@ export function OutreachPanel({ prospectId, entries, campaignId, people, campaig
 
 /** Everything logged on the prospect, newest first, with a box to add a note. */
 export function OutreachHistory({ prospectId, campaignId, activities, canWrite }: { prospectId: string; campaignId: string | null; activities: Activity[]; canWrite: boolean }) {
+  const reload = useReload();
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +239,7 @@ export function OutreachHistory({ prospectId, campaignId, activities, canWrite }
 
 /** The prospect's tasks: tick one off, or add another. */
 export function ProspectTasks({ prospectId, campaignId, tasks, canWrite }: { prospectId: string; campaignId: string | null; tasks: Task[]; canWrite: boolean }) {
+  const reload = useReload();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);

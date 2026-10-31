@@ -147,9 +147,16 @@ export function statusTone(status: string): VariantProps<typeof badgeVariants>["
 // ---------------------------------------------------------------------------
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
+  ({ className, onClick, ...props }, ref) => (
     <input
       ref={ref}
+      // Date and time boxes open their calendar wherever they are clicked,
+      // not only on the small icon.
+      onClick={(e) => {
+        onClick?.(e);
+        if (!["date", "datetime-local", "month", "week", "time"].includes(e.currentTarget.type) || e.currentTarget.readOnly) return;
+        try { e.currentTarget.showPicker?.(); } catch { /* Typing still works. */ }
+      }}
       className={cn(
         "flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-all placeholder:text-muted-foreground hover:border-primary/30 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60",
         className,

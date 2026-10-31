@@ -495,3 +495,14 @@ export async function importProspectBatch(input: z.input<typeof importSchema>): 
   }
   return { ok: true, data: result };
 }
+
+/** The next active prospect by name after this one, going round to the first. */
+export async function nextProspectAfter(businessName: string, id: string): Promise<string | null> {
+  await requireUser();
+  const db = await supabaseServer();
+  const query = () => db.from("prospect").select("id").eq("status", "ACTIVE").is("deletedAt", null).neq("id", id).order("businessName").limit(1);
+  const { data } = await query().gt("businessName", businessName);
+  if (data?.[0]) return String(data[0].id);
+  const { data: first } = await query();
+  return first?.[0] ? String(first[0].id) : null;
+}
