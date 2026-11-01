@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase";
 import { PERMISSIONS, authorize, requireUser, can, type SessionUser as AuthedUser } from "@/lib/authz";
 import { describeInvalid } from "@/lib/form-errors";
@@ -411,10 +411,10 @@ export async function sendRecordEmail(input: z.input<typeof sendSchema>): Promis
     note = !key ? "Email is not set up on this server (RESEND_API_KEY), so it was recorded but not sent." : "Test addresses are never mailed; it was recorded but not sent.";
     await admin.from("email").update({ status: "FAILED", updatedAt: new Date().toISOString() }).eq("id", emailId);
   } else {
-    const sent = await new Resend(key).emails.send({
+    const sent = await new Resend(key, "Record email").emails.send({
       from, to: d.to, cc: d.cc.length ? d.cc : undefined, bcc: d.bcc.length ? d.bcc : undefined, replyTo, subject, html, text,
       attachments: links.length ? links : undefined,
-    });
+    }, { entityType, entityId: d.entityId });
     await admin.from("email").update(sent.error ? { status: "FAILED", updatedAt: new Date().toISOString() } : { status: "SENT", messageId: sent.data?.id ?? null, updatedAt: new Date().toISOString() }).eq("id", emailId);
     if (sent.error) return { ok: false, error: `Could not send: ${sent.error.message}` };
     delivered = true;

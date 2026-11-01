@@ -20,6 +20,8 @@ import { ModuleSummary } from "./module-summary";
 import { PulseTile } from "./pulse-tile";
 import { LiveIndicator, LiveClock, PulseDot } from "@/components/live-indicator";
 import { ActivityStream } from "@/components/activity-stream";
+import { EmailHealthBanner } from "@/components/email-health-banner";
+import { getEmailHealth } from "@/server/activity-log";
 import { DashboardViews, DashboardViewTransition, DashboardViewBody, type ViewKey } from "./dashboard-views";
 import { DeliveryFiltersBar } from "./delivery-filters-bar";
 import { resolveRange } from "@/lib/date-range";
@@ -59,6 +61,7 @@ export default async function DashboardPage({
   }>;
 }) {
   const user = await requireUser();
+  const emailHealth = await getEmailHealth();
 
   // What this reader is allowed to be shown, decided once and applied to both
   // the data fetching and the layout below.
@@ -505,6 +508,7 @@ export default async function DashboardPage({
   return (
     <DashboardViewTransition>
       <div className="flex flex-wrap items-end justify-between gap-3">
+        <EmailHealthBanner health={emailHealth} />
         <PageHeader
           title={`Good to see you, ${user.fullName.split(" ")[0]}`}
           description="Pipeline, cash and delivery load - updating as it happens."
@@ -783,6 +787,7 @@ export default async function DashboardPage({
             </span>
           </h2>
           <ActivityStream initial={recentChanges} visibleTypes={auditTypes} />
+          <Link href="/activity-log" className="mt-2 inline-block text-sm text-primary hover:underline">Open the full Activity log</Link>
         </>
       )}
 

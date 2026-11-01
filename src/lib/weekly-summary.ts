@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "./supabase";
 import { isReservedAddress } from "./notification-mailer";
 import { renderDocumentEmail, brandingFromSettings, emailSettingsFromRow, EMAIL_SETTINGS_ID } from "./email-template";
@@ -124,7 +124,7 @@ export async function sendWeeklySummary(): Promise<{ sent: number; failed: numbe
       relatedEntityType: "User", relatedEntityId: u.id, sentReceivedAt: now, status: key ? "DRAFT" : "FAILED", hasAttachments: false,
     });
     if (!key) { result.failed++; result.errors.push("Email is not set up on this server (RESEND_API_KEY)."); continue; }
-    const sent = await new Resend(key).emails.send({ from: fromAddress, to: [to], subject, html, text });
+    const sent = await new Resend(key, "Weekly summary").emails.send({ from: fromAddress, to: [to], subject, html, text });
     await db.from("email").update(sent.error ? { status: "FAILED", updatedAt: new Date().toISOString() } : { status: "SENT", messageId: sent.data?.id ?? null, updatedAt: new Date().toISOString() }).eq("id", rowId);
     if (sent.error) { result.failed++; result.errors.push(`${to}: ${sent.error.message}`); } else result.sent++;
   }

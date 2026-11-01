@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "./supabase";
 import { isReservedAddress } from "./notification-mailer";
@@ -339,7 +339,7 @@ Unsubscribe: ${unsubscribe}`,
     };
   });
 
-  const result = await new Resend(key).batch.send(payload);
+  const result = await new Resend(key, "Lead outreach").batch.send(payload);
   const at = new Date().toISOString();
   let sent = 0;
   let failed = 0;

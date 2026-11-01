@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase";
 import { PERMISSIONS, authorize } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
@@ -116,7 +116,7 @@ export async function sendEmailTemplateTest(key: SystemEmailKey, subject: string
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, error: "Email is not set up on this server (RESEND_API_KEY)." };
   const r = await render(key, subject, body, auth.user);
-  const { error } = await new Resend(apiKey).emails.send({
+  const { error } = await new Resend(apiKey, "Template test").emails.send({
     from: process.env.EMAIL_FROM ?? "BabulTech CRM <onboarding@resend.dev>",
     to: auth.user.email, subject: `[Test] ${r.subject}`, html: r.html, text: r.text,
   });

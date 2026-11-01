@@ -67,6 +67,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/data-quality", label: "Data quality", icon: ListChecks, permissions: ["account:read", "lead:read", "opportunity:read", "case:read", "project:read"] },
       { href: "/approvals", label: "Approvals", icon: Stamp, permissions: ["quotation:approve", "invoice:approve", "invoice:void", "payable:approve", "expense:approve", "time:approve", "commission:approve"] },
+      { href: "/activity-log", label: "Activity log", icon: ListChecks },
       { href: "/users", label: "Users", icon: ShieldCheck, adminOnly: true },
       { href: "/jobs", label: "Background jobs", icon: RefreshCw, adminOnly: true },
       { href: "/email/senders", label: "Sender addresses", icon: Megaphone, adminOnly: true },

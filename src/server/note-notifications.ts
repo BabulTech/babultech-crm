@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase";
 import { renderDocumentEmail, type EmailBranding } from "@/lib/email-template";
 import { mentionsToPlain } from "@/lib/mentions";
@@ -26,7 +26,7 @@ const SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 
 function client(): Resend | null {
   const key = process.env.RESEND_API_KEY;
-  return key ? new Resend(key) : null;
+  return key ? new Resend(key, "Note mention") : null;
 }
 
 /**

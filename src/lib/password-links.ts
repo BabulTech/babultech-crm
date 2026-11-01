@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { headers } from "next/headers";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { z } from "zod";
 import { supabaseAdmin } from "./supabase";
 import { writeAudit } from "./audit";
@@ -133,7 +133,7 @@ export async function issuePasswordLink(input: {
     sentReceivedAt: stamp, status: "DRAFT", hasAttachments: false,
   });
 
-  const sent = await new Resend(key).emails.send({ from, to: [to], subject, html, text, replyTo: process.env.EMAIL_REPLY_TO });
+  const sent = await new Resend(key, "Password link").emails.send({ from, to: [to], subject, html, text, replyTo: process.env.EMAIL_REPLY_TO });
   await db.from("email").update(sent.error
     ? { status: "FAILED", updatedAt: new Date().toISOString() }
     : { status: "SENT", messageId: sent.data?.id ?? null, updatedAt: new Date().toISOString() }).eq("id", rowId);

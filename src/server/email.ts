@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { one } from "@/lib/decimal";
@@ -34,7 +34,7 @@ const REPLY_TO = process.env.EMAIL_REPLY_TO;
 
 function client(): Resend | null {
   const key = process.env.RESEND_API_KEY;
-  return key ? new Resend(key) : null;
+  return key ? new Resend(key, "Document email") : null;
 }
 
 export async function isEmailConfigured(): Promise<boolean> {
@@ -353,7 +353,7 @@ async function deliver(input: {
     subject: input.subject,
     html: input.html,
     text: input.text,
-  });
+  }, { entityType: input.relatedEntityType, entityId: input.relatedEntityId });
 
   if (error) {
     await db

@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase";
 import { renderDocumentEmail, type EmailBranding } from "@/lib/email-template";
 import { renderSystemEmail } from "@/lib/system-emails";
@@ -117,7 +117,7 @@ export async function sendPortalWelcome(input: {
 
   await db.from("email").insert({ ...base, status: "DRAFT" });
 
-  const { data, error } = await new Resend(key).emails.send({
+  const { data, error } = await new Resend(key, "Portal invite").emails.send({
     from: FROM,
     to: [input.to],
     subject: base.subject,

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { describeInvalid } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { z } from "zod";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
 import { requireUser, AuthorizationError } from "@/lib/authz";
@@ -466,7 +466,7 @@ export async function emailPartnerQuote(
   });
   if (writeError) return { ok: false, error: writeError.message };
 
-  const { data: sent, error: sendError } = await new Resend(key).emails.send({
+  const { data: sent, error: sendError } = await new Resend(key, "Partner quote").emails.send({
     from,
     to: d.to,
     cc: cc.length ? cc : undefined,

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { getPortalContext } from "./portal";
@@ -299,7 +299,7 @@ export async function sendPartnerEmail(
   if (!key) {
     failure = "No mail provider is configured.";
   } else {
-    const result = await new Resend(key).emails.send({
+    const result = await new Resend(key, "Partner activity").emails.send({
       from,
       to: d.to,
       replyTo,

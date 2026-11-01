@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "./supabase";
 import { renderDocumentEmail, emailSettingsFromRow, brandingFromSettings, EMAIL_SETTINGS_ID } from "./email-template";
 
@@ -69,7 +69,7 @@ export async function sendPendingNotificationEmails(deadline: number): Promise<n
 
   const { data: settings } = await db.from("email_settings").select("*").eq("id", EMAIL_SETTINGS_ID).maybeSingle();
   const branding = brandingFromSettings(emailSettingsFromRow(settings));
-  const mail = new Resend(key);
+  const mail = new Resend(key, "Notification");
   let handled = 0;
 
   for (const [userId, items] of byUser) {

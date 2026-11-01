@@ -319,6 +319,9 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     watchOut:
       "Some records cannot be deleted at all - a converted lead, a won deal, an account with invoices. The Delete button says why on hover.",
   },
+  "/activity-log": {
+    purpose: "The permanent audit trail: emails, records, changes, sign-ins, timesheets and system work. Administrators see everything; others see their own actions.",
+  },
   "/users/security": {
     purpose: "Every sign-in, failed sign-in and sign-out, and every View as session with its reason.",
     feeds: ["Nothing - this is a record for checking"],

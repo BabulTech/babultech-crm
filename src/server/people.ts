@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
-import { Resend } from "resend";
+import { Resend } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase";
 import { authorize, authorizeAny, requireUser, can, canAny, PERMISSIONS, type SessionUser } from "@/lib/authz";
 import { one } from "@/lib/decimal";
@@ -670,7 +670,7 @@ export async function sendForSigning(id: string, options: { email?: boolean } = 
       senderName: auth.user.fullName,
       senderTitle: auth.user.jobTitle,
     });
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = new Resend(process.env.RESEND_API_KEY, "People contract");
     const sent = await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "BabulTech CRM <onboarding@resend.dev>",
       to: staff.personalEmail, replyTo: process.env.EMAIL_REPLY_TO ?? auth.user.email,
