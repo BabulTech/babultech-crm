@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, Target, Coins, Building2, UserPlus, Package,
-  Menu, X, LogOut, MessageSquare, UsersRound,
+  Menu, X, LogOut, MessageSquare, UsersRound, UserRound,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { signOutAction } from "@/lib/sign-out-action";
@@ -23,6 +23,7 @@ const NAV = [
   { href: "/portal/catalogue", label: "Products & Services", icon: Package },
   { href: "/portal/commissions", label: "Commission", icon: Coins, adminOnly: true },
   { href: "/portal/activities", label: "Activities", icon: MessageSquare },
+  { href: "/portal/account", label: "Your profile", icon: UserRound, exact: true },
   { href: "/portal/account/team", label: "Your team", icon: UsersRound },
 ];
 
