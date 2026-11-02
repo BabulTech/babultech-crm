@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/authz";
 import { getPartnerProfile } from "@/server/portal";
+import { getMyPartnerChanges } from "@/server/partner-changes";
+import { ProfileEditor } from "./profile-editor";
 import {
   PageHeader, Card, CardHeader, CardTitle, CardContent, Badge, statusTone, DetailRow, Alert,
 } from "@/components/ui";
@@ -8,13 +10,15 @@ import { formatDate, formatPercent, humanize } from "@/lib/utils";
 import { ChangePasswordForm } from "@/app/(app)/profile/profile-client";
 
 export default async function PortalAccountPage() {
-  const [user, partner] = await Promise.all([requireUser(), getPartnerProfile()]);
+  const [user, partner, changes] = await Promise.all([requireUser(), getPartnerProfile(), getMyPartnerChanges()]);
 
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title="Your account" description="Your partnership details and your login.">
         <Badge tone={statusTone(partner.status)}>{humanize(partner.status)}</Badge>
       </PageHeader>
+
+      <ProfileEditor state={changes} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -37,9 +41,11 @@ export default async function PortalAccountPage() {
               {partner.withholdingTaxPercent ? formatPercent(partner.withholdingTaxPercent, 2) : "None"}
             </DetailRow>
             <DetailRow label="Tax number">{partner.taxNumber ?? "—"}</DetailRow>
+            <DetailRow label="Email">{partner.email ?? "—"}</DetailRow>
+            <DetailRow label="Phone">{partner.phone ?? "—"}</DetailRow>
+            <DetailRow label="Website">{partner.website ?? "—"}</DetailRow>
             <p className="pt-2 text-xs text-muted-foreground">
-              To change any of this - including your bank details - contact your partner manager.
-              Bank details are never shown here.
+              Type, tier and agreement dates are set by your partner manager.
             </p>
           </CardContent>
         </Card>

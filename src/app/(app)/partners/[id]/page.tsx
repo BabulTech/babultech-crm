@@ -12,6 +12,8 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { Building2, User, Mail, Phone, Globe, MapPin } from "lucide-react";
 import { getPartner, getPartnerSummary } from "@/server/partners";
 import { listPartnerPortalAccess } from "@/server/partner-access";
+import { getPendingPartnerChange } from "@/server/partner-changes";
+import { PartnerChangePanel } from "./partner-change-panel";
 import { PartnerPortalPanel } from "./portal-access-panel";
 import { PartnerThread } from "@/components/partner-thread";
 import { getPartnerThread } from "@/server/partner-activities";
@@ -52,8 +54,10 @@ export default async function PartnerDetailPage({
   const agreementExpired =
     partner.agreementExpiryDate && partner.agreementExpiryDate < new Date();
 
+  const pendingChange = await getPendingPartnerChange(id);
   return (
     <>
+      {pendingChange && <PartnerChangePanel request={pendingChange} />}
       <PageHeader
         backTo="/partners"
         backLabel="Back to partners"

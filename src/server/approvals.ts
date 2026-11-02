@@ -28,7 +28,8 @@ export type ApprovalKind =
   | "expense"
   | "timesheet"
   | "vendor-bill"
-  | "commission";
+  | "commission"
+  | "partner-change";
 
 export interface PendingApproval {
   kind: ApprovalKind;
@@ -258,6 +259,20 @@ export async function getPendingApprovals(): Promise<{
   }
 
   // Oldest first: what has been waiting longest is what is holding someone up.
+  if (can(me, PERMISSIONS.ADMIN)) {
+    const { data: changes } = await supabaseAdmin().from("partner_change_request")
+      .select("id, partnerId, requestedByName, createdAt, changes, partner ( displayName, partnerNumber )").eq("status", "PENDING");
+    for (const c of (changes ?? []) as Record<string, any>[]) {
+      const partner = one(c.partner as never) as { displayName?: string; partnerNumber?: string } | null;
+      items.push({
+        kind: "partner-change", id: c.id, reference: partner?.partnerNumber ?? "Partner",
+        title: `${partner?.displayName ?? "Partner"} profile change`,
+        subtitle: Object.keys(c.changes).length + " field(s)" + (c.changes.bankDetails ? ", including bank details" : ""),
+        amount: null, currencyCode: null, requestedBy: c.requestedByName, waitingSince: c.createdAt, href: `/partners/${c.partnerId}`,
+      });
+    }
+  }
+
   items.sort((a, b) => a.waitingSince.localeCompare(b.waitingSince));
 
   const byKind: Record<string, number> = {};

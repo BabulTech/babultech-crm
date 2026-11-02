@@ -16,6 +16,7 @@ const KIND: Record<ApprovalKind, { label: string; icon: LucideIcon; href: string
   timesheet: { label: "Timesheet", icon: Clock, href: "/timesheets/approvals" },
   "vendor-bill": { label: "Vendor bill", icon: FileInput, href: "/vendor-bills" },
   commission: { label: "Partner rate requests", icon: Coins, href: "/commissions?view=requests" },
+  "partner-change": { label: "Partner profile changes", icon: FileInput, href: "/partners" },
 };
 
 /**
@@ -34,7 +35,8 @@ export default async function ApprovalsPage() {
     can(me, PERMISSIONS.INVOICE_APPROVE) ||
     can(me, PERMISSIONS.EXPENSE_APPROVE) ||
     can(me, PERMISSIONS.TIME_APPROVE) ||
-    can(me, PERMISSIONS.COMMISSION_APPROVE);
+    can(me, PERMISSIONS.COMMISSION_APPROVE) ||
+    can(me, PERMISSIONS.ADMIN);
 
   if (!canApproveAnything) return <Forbidden what="approvals" />;
 
