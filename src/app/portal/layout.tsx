@@ -4,7 +4,6 @@ import { requireUser, AuthorizationError, datePrefsFor } from "@/lib/authz";
 import { getPartnerProfile } from "@/server/portal";
 import { CurrencyContextProvider } from "@/components/currency-context-provider";
 import { DatePrefsProvider } from "@/components/date-prefs-provider";
-import { PortalAssistant } from "@/components/portal-assistant";
 import { ensureCurrencyContext } from "@/lib/currency-loader";
 import { ViewAsBanner } from "@/components/view-as-banner";
 
@@ -50,7 +49,6 @@ export default async function PortalLayout({ children }: { children: React.React
         }}
         user={{ fullName: user.fullName, email: user.email }}
         isAdmin={user.portalRole === "ADMIN"}
-        assistant={<PortalAssistant audience="partner" />}
       >
         <DatePrefsProvider value={datePrefsFor(user)}>{children}</DatePrefsProvider>
       </PortalShell>
