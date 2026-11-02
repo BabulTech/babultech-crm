@@ -47,6 +47,9 @@ export interface PendingApproval {
   blockedReason?: string;
 }
 
+const formatWeek = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+
 const daysSince = (iso: string | null | undefined) => {
   if (!iso) return 0;
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
@@ -189,11 +192,15 @@ export async function getPendingApprovals(): Promise<{
   }
 
   // Time is approved a week at a time on its own screen, so the entries are
-  // grouped by person rather than listed one by one.
-  const byUser = new Map<string, { name: string; hours: number; oldest: string; count: number }>();
+  // grouped by person and week rather than listed one by one.
+  const byUser = new Map<string, { name: string; week: string; hours: number; oldest: string; count: number }>();
   for (const t of (timeLogs.data ?? []) as Row[]) {
     const user = one(t.user as never) as Row | null;
-    const key = t.userId;
+    // Monday of the entry's week: a person's weeks are decided one at a time.
+    const day = new Date(`${String(t.workDate).slice(0, 10)}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+    const week = day.toISOString().slice(0, 10);
+    const key = `${t.userId}|${week}`;
     const existing = byUser.get(key);
     const hours = Number(t.hours ?? 0);
     if (existing) {
@@ -203,6 +210,7 @@ export async function getPendingApprovals(): Promise<{
     } else {
       byUser.set(key, {
         name: user?.fullName ?? "Unknown",
+        week,
         hours,
         oldest: t.createdAt,
         count: 1,
@@ -210,18 +218,18 @@ export async function getPendingApprovals(): Promise<{
     }
   }
 
-  for (const [userId, group] of byUser) {
+  for (const [key, group] of byUser) {
     items.push({
       kind: "timesheet",
-      id: userId,
+      id: key,
       reference: `${group.count} entr${group.count === 1 ? "y" : "ies"}`,
       title: `${group.hours.toFixed(2)} hours from ${group.name}`,
-      subtitle: "Submitted time awaiting approval",
+      subtitle: `Week of ${formatWeek(group.week)}, awaiting approval`,
       amount: null,
       currencyCode: null,
       requestedBy: group.name,
       waitingSince: group.oldest,
-      href: "/timesheets/approvals",
+      href: `/timesheets/approvals?week=${group.week}`,
     });
   }
 
