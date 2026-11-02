@@ -12,8 +12,8 @@ export default async function CurrenciesPage() {
   return (
     <>
       <PageHeader
-        backTo="/company"
-        backLabel="Back to company information"
+        backTo="/overview?tab=profile"
+        backLabel="Back to Company overview"
         title="Currencies"
         description="Add a currency, or set its exchange rate against PKR. Every conversion in the system goes through these rates."
       />

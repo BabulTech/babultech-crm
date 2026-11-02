@@ -2,42 +2,25 @@ import Link from "next/link";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { PageHeader, Card, CardContent, CardHeader, CardTitle, StatTile, Button, Forbidden, Badge, Table, THead, TBody, TR, TH, TD } from "@/components/ui";
 import { formatDate, formatNumber, humanize } from "@/lib/utils";
-import { getCompanyOverview } from "@/server/company-overview";
+import { getCompanyOverview, getOverviewExtras } from "@/server/company-overview";
+import { period, RANGES } from "./period";
+import { CashOutlook, HealthStrip, TimesheetCompliance, Trends } from "./extras";
+import { CompanyProfileTab, OrganisationTab } from "./company-tabs";
+import { PrintButton } from "./print-button";
 
 /**
  * The whole business on one screen, for the Super Admin and CRM Admins:
- * headline figures against the previous period, the funnel from prospect to
+ * the health of the system, cash ahead, trends, headline figures against the previous period, the funnel from prospect to
  * payment, sales, delivery, money, the team and what needs a decision.
  */
 
-type Params = { range?: string };
+type Params = { range?: string; tab?: string };
 
-const RANGES = [
-  { key: "this-week", label: "This week" },
-  { key: "last-week", label: "Last week" },
-  { key: "this-month", label: "This month" },
-  { key: "last-month", label: "Last month" },
-  { key: "this-quarter", label: "This quarter" },
-  { key: "last-90", label: "Last 90 days" },
+const TABS = [
+  { key: "performance", label: "Performance" },
+  { key: "organisation", label: "Organisation" },
+  { key: "profile", label: "Company profile" },
 ] as const;
-
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-/** The chosen period as dates, in Pakistan time. */
-function period(key: string): { from: string; to: string } {
-  const today = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date())}T00:00:00Z`);
-  const add = (d: Date, days: number) => new Date(d.getTime() + days * 86_400_000);
-  const monday = add(today, -((today.getUTCDay() + 6) % 7));
-  const y = today.getUTCFullYear(), m = today.getUTCMonth();
-  switch (key) {
-    case "this-week": return { from: iso(monday), to: iso(today) };
-    case "last-week": return { from: iso(add(monday, -7)), to: iso(add(monday, -1)) };
-    case "last-month": return { from: iso(new Date(Date.UTC(y, m - 1, 1))), to: iso(new Date(Date.UTC(y, m, 0))) };
-    case "this-quarter": return { from: iso(new Date(Date.UTC(y, m - (m % 3), 1))), to: iso(today) };
-    case "last-90": return { from: iso(add(today, -89)), to: iso(today) };
-    default: return { from: iso(new Date(Date.UTC(y, m, 1))), to: iso(today) };
-  }
-}
 
 const pkr = (n: number) => `PKR ${formatNumber(Math.round(n), 0)}`;
 const pkrShort = (n: number) => (Math.abs(n) >= 1e6 ? `PKR ${formatNumber(n / 1e6, 1)}M` : Math.abs(n) >= 1e3 ? `PKR ${formatNumber(n / 1e3, 0)}K` : pkr(n));
@@ -54,9 +37,26 @@ export default async function CompanyOverviewPage({ searchParams }: { searchPara
   const me = await requireUser();
   if (!can(me, PERMISSIONS.ADMIN)) return <Forbidden what="the Company overview" />;
   const q = await searchParams;
+  const tab = TABS.some((t) => t.key === q.tab) ? q.tab! : "performance";
   const range = RANGES.some((r) => r.key === q.range) ? q.range! : "this-month";
   const { from, to } = period(range);
-  const o = await getCompanyOverview(from, to);
+  const tabBar = (
+    <div className="mb-6 flex flex-wrap gap-2 border-b pb-3 print:hidden">
+      {TABS.map((t) => (
+        <Button key={t.key} asChild size="sm" variant={tab === t.key ? "default" : "ghost"}><a href={`/overview?tab=${t.key}&range=${range}`}>{t.label}</a></Button>
+      ))}
+    </div>
+  );
+  if (tab !== "performance") {
+    return (
+      <>
+        <PageHeader title="Company overview" description="The whole business, the organisation and its settings, in one place." />
+        {tabBar}
+        {tab === "organisation" ? <OrganisationTab /> : <CompanyProfileTab />}
+      </>
+    );
+  }
+  const [o, extras] = await Promise.all([getCompanyOverview(from, to), getOverviewExtras()]);
   const c = o.current, p = o.previous;
 
   const tiles: { label: string; value: string; now: number; before: number; good?: "down"; href?: string }[] = [
@@ -112,7 +112,11 @@ export default async function CompanyOverviewPage({ searchParams }: { searchPara
           // Plain links: a client-side change of only the query string did not take effect on the production build.
           <Button key={r.key} asChild size="sm" variant={range === r.key ? "default" : "outline"}><a href={`/overview?range=${r.key}`}>{r.label}</a></Button>
         ))}
+        <Button asChild size="sm" variant="outline"><a href={`/overview/export?range=${range}`}>Export CSV</a></Button>
+        <PrintButton />
       </PageHeader>
+      {tabBar}
+      <HealthStrip health={extras.health} />
 
       <Card>
         <CardHeader><CardTitle>Needs your decision</CardTitle></CardHeader>
@@ -133,6 +137,9 @@ export default async function CompanyOverviewPage({ searchParams }: { searchPara
           return <StatTile key={t.label} label={t.label} value={t.value} sublabel={tr.text} tone={tone} href={t.href} />;
         })}
       </div>
+
+      <CashOutlook cash={extras.cash} />
+      <Trends trends={extras.trends} />
 
       <Card className="mt-6">
         <CardHeader><CardTitle>From prospect to payment</CardTitle></CardHeader>
@@ -160,7 +167,7 @@ export default async function CompanyOverviewPage({ searchParams }: { searchPara
             <div className="grid gap-3 sm:grid-cols-3">
               <StatTile label="Open pipeline" value={pkrShort(o.sales.pipelineValue)} sublabel={`${formatNumber(o.sales.openDeals, 0)} deals`} />
               <StatTile label="Closing this month" value={pkrShort(o.sales.closingThisMonthValue)} sublabel={`${formatNumber(o.sales.closingThisMonth, 0)} deals`} />
-              <StatTile label="Win rate" value={won + lost ? `${formatNumber((won / (won + lost)) * 100, 0)}%` : "—"} sublabel={`${won} won, ${lost} lost`} />
+              <StatTile label="Win rate" value={won + lost ? `${formatNumber((won / (won + lost)) * 100, 0)}%` : "—"} sublabel={`${won} won, ${lost} lost${p.dealsWon + p.dealsLost ? `; was ${formatNumber((p.dealsWon / (p.dealsWon + p.dealsLost)) * 100, 0)}%` : ""}`} />
             </div>
             {o.sales.byStage.length > 0 && (
               <Table>
@@ -270,6 +277,8 @@ export default async function CompanyOverviewPage({ searchParams }: { searchPara
           </CardContent>
         </Card>
       </div>
+
+      <TimesheetCompliance data={extras.timesheets} />
     </>
   );
 }

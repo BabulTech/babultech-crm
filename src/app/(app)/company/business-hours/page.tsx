@@ -14,8 +14,8 @@ export default async function BusinessHoursPage() {
   return (
     <>
       <PageHeader
-        backTo="/company"
-        backLabel="Back to company information"
+        backTo="/overview?tab=profile"
+        backLabel="Back to Company overview"
         title="Business hours"
         description="Your working week. Support clocks only run inside these hours, so a day marked closed is a day an SLA does not count."
       />

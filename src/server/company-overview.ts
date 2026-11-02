@@ -37,3 +37,19 @@ export async function getCompanyOverview(from: string, to: string): Promise<Comp
   if (error) throw new Error(`Could not load the overview: ${error.message}`);
   return data as CompanyOverview;
 }
+
+export interface OverviewExtras {
+  cash: { overdueIn: number; dueIn: number; bills: number; commissions: number; expenses: number };
+  trends: { month: string; invoiced: number; collected: number; newPipeline: number }[];
+  health: { lastEmailOutcome: string | null; emailFailed7d: number; jobsFailed7d: number; signInsFailed7d: number };
+  timesheets: { weekStart: string; people: { id: string; name: string; committed: number; logged: number; status: string | null }[] };
+}
+
+export async function getOverviewExtras(): Promise<OverviewExtras> {
+  const me = await requireUser();
+  if (!can(me, PERMISSIONS.ADMIN)) throw new Error("The Company overview is for administrators.");
+  const db = await supabaseServer();
+  const { data, error } = await db.rpc("company_overview_extras");
+  if (error) throw new Error(`Could not load the overview: ${error.message}`);
+  return data as OverviewExtras;
+}

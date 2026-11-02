@@ -295,6 +295,7 @@ export async function saveBusinessHours(
   if (!data) return { ok: false, error: "That schedule no longer exists." };
 
   revalidatePath("/company");
+  revalidatePath("/overview");
   return { ok: true, data: { id: data.id as string } };
 }
 
