@@ -37,9 +37,10 @@ export default async function PortalHomePage() {
       >
         <Badge tone={statusTone(partner.status)}>{humanize(partner.status)}</Badge>
         <Badge tone="neutral">{humanize(partner.tier)}</Badge>
+        {isAdmin && <Button asChild variant="outline"><Link href="/portal/account?edit=1">Update Profile</Link></Button>}
         <Button asChild variant="outline">
           <Link href="/portal/activities">
-            <MessageSquare className="h-4 w-4" /> Contact
+            <MessageSquare className="h-4 w-4" /> Contact babultech
             {unread > 0 && (
               <Badge tone="warning" className="ml-1.5">{unread}</Badge>
             )}

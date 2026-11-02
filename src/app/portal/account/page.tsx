@@ -9,7 +9,8 @@ import { PreferencesSection } from "@/components/preferences-section";
 import { formatDate, formatPercent, humanize } from "@/lib/utils";
 import { ChangePasswordForm } from "@/app/(app)/profile/profile-client";
 
-export default async function PortalAccountPage() {
+export default async function PortalAccountPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+  const { edit } = await searchParams;
   const [user, partner, changes] = await Promise.all([requireUser(), getPartnerProfile(), getMyPartnerChanges()]);
 
   return (
@@ -18,7 +19,7 @@ export default async function PortalAccountPage() {
         <Badge tone={statusTone(partner.status)}>{humanize(partner.status)}</Badge>
       </PageHeader>
 
-      <ProfileEditor state={changes} />
+      <ProfileEditor state={changes} startEditing={edit === "1"} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

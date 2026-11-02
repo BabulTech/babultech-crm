@@ -13,7 +13,8 @@ const TEXT_FIELDS = [
 const PERCENT_FIELDS = [["defaultCommissionPercent", "Commission rate (%)"], ["withholdingTaxPercent", "Withholding tax (%)"]] as const;
 const BANK_FIELDS = [["bankName", "Bank"], ["accountTitle", "Account title"], ["accountNumber", "Account number"], ["iban", "IBAN"], ["branch", "Branch"]] as const;
 
-export function ProfileEditor({ state }: {
+export function ProfileEditor({ state, startEditing = false }: {
+  startEditing?: boolean;
   state: {
     isAdmin: boolean;
     current: Record<string, unknown>;
@@ -22,7 +23,7 @@ export function ProfileEditor({ state }: {
   };
 }) {
   const { isAdmin, current, pending, latest } = state;
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing && state.isAdmin && !state.pending);
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const bank = (current.bankDetails ?? {}) as Record<string, string>;
@@ -79,6 +80,7 @@ export function ProfileEditor({ state }: {
         {!editing && !isAdmin && <p className="text-muted-foreground">Bank details and changes are handled by your portal admin.</p>}
         {editing && (
           <form action={submit} className="space-y-4">
+            <Alert tone="info">Your changes will be sent to your admin for approval.</Alert>
             {error && <Alert tone="danger">{error}</Alert>}
             <div className="grid gap-4 sm:grid-cols-2">
               {TEXT_FIELDS.map(([k, label]) => <Field key={k} label={label}><Input aria-label={label} name={k} defaultValue={String(current[k] ?? "")} /></Field>)}
@@ -86,7 +88,7 @@ export function ProfileEditor({ state }: {
               {BANK_FIELDS.map(([k, label]) => <Field key={k} label={label}><Input aria-label={label} name={k} defaultValue={bank[k] ?? ""} /></Field>)}
               <div className="sm:col-span-2"><Field label="Reason (optional)"><Textarea aria-label="Reason" name="reason" rows={2} /></Field></div>
             </div>
-            <p className="text-xs text-muted-foreground">Nothing changes until an administrator approves it. A new commission rate applies to deals registered after approval.</p>
+            <p className="text-xs text-muted-foreground">A new commission rate applies to deals registered after approval.</p>
             <div className="flex justify-end gap-2">
               <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
               <Button type="submit" size="sm" disabled={busy}>{busy ? "Sending…" : "Submit for approval"}</Button>
