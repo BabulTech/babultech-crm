@@ -6,7 +6,8 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { logTime, updateTimeLog } from "@/server/timesheets";
 import { hoursBetween } from "@/lib/work-hours";
 import { cn } from "@/lib/utils";
-import { SALES_ACTIVITIES, SALES_TYPE_LABEL, SALES_TYPES } from "@/lib/sales-types";
+import { SALES_ACTIVITIES } from "@/lib/sales-types";
+import { SalesRecordLookup } from "@/components/sales-record-lookup";
 
 /**
  * The one form for logging time, used everywhere time is logged: My timesheet
@@ -88,6 +89,10 @@ export function TimeEntryForm({
 
   function save(fd: FormData) {
     setError(null);
+    if (target === "SALES" && !salesKey) {
+      setError("Pick one of your prospects, leads, deals or accounts from the list.");
+      return;
+    }
     const get = (k: string) => {
       const v = fd.get(k);
       return v === null || v === "" ? null : String(v);
@@ -186,18 +191,8 @@ export function TimeEntryForm({
 
         {!entry && !lockSales && target === "SALES" && (
           <div className="sm:col-span-2">
-            <Field label="Prospect, lead, deal or account" required help="The record the time went on. Lists the open ones you own.">
-              <Select aria-label="Sales record" required value={salesKey} onChange={(e) => setSalesKey(e.target.value)}>
-                <option value="">Select…</option>
-                {SALES_TYPES.map((type) => {
-                  const rows = (options.sales ?? []).filter((s) => s.type === type);
-                  return rows.length ? (
-                    <optgroup key={type} label={SALES_TYPE_LABEL[type] + "s"}>
-                      {rows.map((s) => <option key={s.id} value={`${s.type}:${s.id}`}>{s.label}</option>)}
-                    </optgroup>
-                  ) : null;
-                })}
-              </Select>
+            <Field label="Prospect, lead, deal or account" required help="The record the time went on. Only the open ones you own are listed.">
+              <SalesRecordLookup records={options.sales ?? []} value={salesKey} onChange={setSalesKey} />
             </Field>
           </div>
         )}

@@ -7,7 +7,7 @@ import { z } from "zod";
 import Decimal from "decimal.js";
 import { toDecimal, one } from "@/lib/decimal";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
-import { labelSalesRecords, salesHref, salesOptionsFor, salesRecordExists } from "@/lib/sales-records";
+import { labelSalesRecords, salesHref, salesOptionsFor, ownsSalesRecord } from "@/lib/sales-records";
 import { createRecord, updateRecord } from "@/lib/db";
 import { PERMISSIONS, authorize, requirePermission, requireUser } from "@/lib/authz";
 import { hoursBetween, normaliseClock } from "@/lib/work-hours";
@@ -212,8 +212,8 @@ export async function logTime(
     const sales = !projectId && !data.caseId && data.salesEntityType && data.salesEntityId
       ? { salesEntityType: data.salesEntityType, salesEntityId: data.salesEntityId, salesActivity: data.salesActivity ?? null }
       : null;
-    if (sales && !(await salesRecordExists(sales.salesEntityType, sales.salesEntityId))) {
-      return { ok: false, error: "That record no longer exists." };
+    if (sales && !(await ownsSalesRecord(sales.salesEntityType, sales.salesEntityId, user.id))) {
+      return { ok: false, error: "You can only log sales time on prospects, leads, deals and accounts you own." };
     }
     // Sales time is never billed to a customer.
     const billable = sales ? false : projectId

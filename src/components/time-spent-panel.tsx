@@ -16,8 +16,10 @@ export interface SalesTimeRow {
 const activityLabel = Object.fromEntries(SALES_ACTIVITIES);
 
 /** Time spent on a prospect, lead, deal or account, and a way to log more. */
-export function TimeSpentPanel({ type, id, label, rows, options }: {
+export function TimeSpentPanel({ type, id, label, rows, options, canLog }: {
   type: SalesType; id: string; label: string; rows: SalesTimeRow[]; options: TimeEntryOptions;
+  /** Only the record's owner logs time on it. */
+  canLog: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const hours = rows.reduce((s, r) => s + Number(r.hours), 0);
@@ -30,7 +32,7 @@ export function TimeSpentPanel({ type, id, label, rows, options }: {
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2">
           Time spent
-          {!adding && <Button size="sm" variant="outline" onClick={() => setAdding(true)}>Log time</Button>}
+          {canLog && !adding && <Button size="sm" variant="outline" onClick={() => setAdding(true)}>Log time</Button>}
         </CardTitle>
         <p className="text-sm text-muted-foreground">
           {formatNumber(hours, 2)} hours by {people} {people === 1 ? "person" : "people"}{cost ? `, costing PKR ${formatNumber(Math.round(cost), 0)}` : ""}.
