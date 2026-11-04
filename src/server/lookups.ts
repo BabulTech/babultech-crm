@@ -86,7 +86,8 @@ const ENTITIES: Record<LookupEntity, EntityConfig> = {
     permission: null,
     search: ["fullName", "email"],
     select: "id, fullName, email, jobTitle, partnerId",
-    display: (r) => ({ label: r.fullName, sublabel: [r.jobTitle, r.email].filter(Boolean).join(" · ") }),
+    // Name only; the email appears only to tell two people of the same name apart.
+    display: (r) => ({ label: r.fullName, sublabel: r.email ?? null, nameOnly: true }),
     order: "fullName",
     activeFilter: (q) => q.eq("status", "ACTIVE"),
     softDeleted: true,
@@ -260,7 +261,7 @@ export async function searchLookup(
   const { data, error } = await query.order(config.order).limit(LOOKUP_PAGE_SIZE);
   if (error) throw new Error(`Could not search ${entity}s: ${error.message}`);
 
-  return (data ?? []).map((row: Record<string, any>) => ({ id: row.id, ...config.display(row) }));
+  return nameOnly((data ?? []).map((row: Record<string, any>) => ({ id: row.id, ...config.display(row) })));
 }
 
 /**
@@ -282,5 +283,12 @@ export async function resolveLookup(entity: LookupEntity, ids: string[]): Promis
   const { data, error } = await db.from(config.table).select(config.select).in("id", wanted);
   if (error) return [];
 
-  return (data ?? []).map((row: Record<string, any>) => ({ id: row.id, ...config.display(row) }));
+  return nameOnly((data ?? []).map((row: Record<string, any>) => ({ id: row.id, ...config.display(row) })));
+}
+
+/** People show by name; the email is kept only where two share a name. */
+function nameOnly<T extends { label: string; sublabel?: string | null; nameOnly?: boolean }>(rows: T[]): T[] {
+  const count = new Map<string, number>();
+  for (const r of rows) if (r.nameOnly) count.set(r.label, (count.get(r.label) ?? 0) + 1);
+  return rows.map(({ nameOnly: flag, ...r }) => (flag && (count.get(r.label) ?? 0) < 2 ? { ...r, sublabel: null } : r) as T);
 }

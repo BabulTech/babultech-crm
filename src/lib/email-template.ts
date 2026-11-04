@@ -188,6 +188,8 @@ export function renderDocumentEmail(input: DocumentEmail): { html: string; text:
   // and the inbox preview line.
   const message = messageHtml ? richTextToPlain(messageHtml) : input.message;
   const signedBy = senderTitle?.trim() ? `${senderName} (${senderTitle.trim()})` : senderName;
+  // A person who wrote the email still signs it; the system does not.
+  const personal = Boolean(senderName?.trim()) && !/^babultech( crm)?$/i.test(senderName.trim()) && senderName.trim() !== b.companyName;
 
   const summaryRows = summary
     .map(
@@ -273,8 +275,8 @@ export function renderDocumentEmail(input: DocumentEmail): { html: string; text:
     }
 
     <tr><td style="padding:22px 32px 28px;">
-      <p style="margin:0;font-size:14px;line-height:1.6;color:${b.textColor};">Kind regards,<br><strong>${escape(signedBy)}</strong></p>
-      <p style="margin:4px 0 0;font-size:13px;color:${b.mutedColor};">${escape(b.companyName)}</p>
+      <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:${b.textColor};">Kind regards,${personal ? `<br><strong>${escape(signedBy)}</strong>` : ""}</p>
+      ${masthead(b)}
     </td></tr>
 
     <tr><td style="padding:20px 32px;background-color:#F8FAFC;border-top:1px solid #E8ECF2;">
@@ -301,7 +303,7 @@ export function renderDocumentEmail(input: DocumentEmail): { html: string; text:
     action && actionUrl ? `\n${action.label}: ${actionUrl}` : "",
     "",
     `Kind regards,`,
-    signedBy,
+    ...(personal ? [signedBy] : []),
     b.companyName,
     "",
     [b.supportEmail, b.supportPhone, b.websiteUrl].filter(Boolean).join(" · "),
