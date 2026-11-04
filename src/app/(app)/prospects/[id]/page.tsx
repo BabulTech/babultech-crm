@@ -1,3 +1,4 @@
+import { TimeSpentSection } from "@/components/time-spent-section";
 import { FavoriteControl } from "@/components/favorite-control";
 import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
@@ -120,6 +121,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
           {canWrite && <ProspectEditor prospect={p as never} datasets={datasets.map((d) => ({ id: d.id, name: d.name }))} />}
         </div>
       </div>
+      <div className="mt-6"><TimeSpentSection type="Prospect" id={p.id} label={p.businessName} /></div>
     </>
   );
 }

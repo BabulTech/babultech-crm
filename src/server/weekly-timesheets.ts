@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase";
+import { labelSalesRecords } from "@/lib/sales-records";
 import { authorize, requireUser } from "@/lib/authz";
 import { isReservedAddress } from "@/lib/notification-mailer";
 import type { ActionResult } from "./partners";
@@ -192,12 +193,14 @@ export async function getTimesheetEntries(userId: string, weekStart: string) {
   if (myRank === "EMPLOYEE" || !isWeekStart(weekStart)) return [];
   const { data } = await supabaseAdmin()
     .from("time_log")
-    .select("id, \"workDate\", hours, description, billable, \"approvalStatus\", project ( name ), case:support_case ( \"caseNumber\" )")
+    .select("id, \"workDate\", hours, description, billable, \"approvalStatus\", project ( name ), case:support_case ( \"caseNumber\" ), \"salesEntityType\", \"salesEntityId\"")
     .eq("userId", userId).gte("workDate", weekStart).lt("workDate", addDays(weekStart, 7)).order("workDate");
+  const names = await labelSalesRecords((data ?? []).map((e) => ({ type: e.salesEntityType as string | null, id: e.salesEntityId as string | null })));
   return (data ?? []).map((e) => ({
     id: e.id as string, workDate: String(e.workDate), hours: Number(e.hours), description: (e.description as string | null) ?? "",
     on: ((Array.isArray(e.project) ? e.project[0] : e.project) as { name?: string } | null)?.name
-      ?? ((Array.isArray(e.case) ? e.case[0] : e.case) as { caseNumber?: string } | null)?.caseNumber ?? "Internal",
+      ?? ((Array.isArray(e.case) ? e.case[0] : e.case) as { caseNumber?: string } | null)?.caseNumber
+      ?? (e.salesEntityId ? `Sales: ${names.get(`${e.salesEntityType}:${e.salesEntityId}`) ?? "record"}` : "Internal"),
     status: String(e.approvalStatus),
   }));
 }

@@ -92,12 +92,13 @@ export function TimesheetCompliance({ data }: { data: OverviewExtras["timesheets
       </CardHeader>
       <CardContent className="p-0">
         <Table>
-          <THead><TR><TH>Person</TH><TH>Logged</TH><TH>Committed</TH><TH>Used</TH><TH>Timesheet</TH></TR></THead>
+          <THead><TR><TH>Person</TH><TH>Logged</TH><TH>Of which sales</TH><TH>Committed</TH><TH>Used</TH><TH>Timesheet</TH></TR></THead>
           <TBody>
             {data.people.map((p) => (
               <TR key={p.id}>
                 <TD><Link href={`/timesheets/approvals?week=${data.weekStart}`} className="hover:underline">{p.name}</Link></TD>
                 <TD className="tabular-nums">{formatNumber(Number(p.logged), 1)}</TD>
+                <TD className="tabular-nums">{formatNumber(Number(p.salesHours ?? 0), 1)}</TD>
                 <TD className="tabular-nums">{formatNumber(Number(p.committed), 0)}</TD>
                 <TD className="tabular-nums">{Number(p.committed) ? `${formatNumber((Number(p.logged) / Number(p.committed)) * 100, 0)}%` : "—"}</TD>
                 <TD><Badge tone={p.status === "APPROVED" ? "success" : p.status === "SUBMITTED" ? "info" : "warning"}>{p.status ? humanize(p.status) : "Not submitted"}</Badge></TD>

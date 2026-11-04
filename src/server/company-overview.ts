@@ -42,7 +42,7 @@ export interface OverviewExtras {
   cash: { overdueIn: number; dueIn: number; bills: number; commissions: number; expenses: number };
   trends: { month: string; invoiced: number; collected: number; newPipeline: number }[];
   health: { lastEmailOutcome: string | null; emailFailed7d: number; jobsFailed7d: number; signInsFailed7d: number };
-  timesheets: { weekStart: string; people: { id: string; name: string; committed: number; logged: number; status: string | null }[] };
+  timesheets: { weekStart: string; people: { id: string; name: string; committed: number; logged: number; salesHours?: number; status: string | null }[] };
 }
 
 export async function getOverviewExtras(): Promise<OverviewExtras> {
@@ -51,5 +51,13 @@ export async function getOverviewExtras(): Promise<OverviewExtras> {
   const db = await supabaseServer();
   const { data, error } = await db.rpc("company_overview_extras");
   if (error) throw new Error(`Could not load the overview: ${error.message}`);
-  return data as OverviewExtras;
+  const extras = data as OverviewExtras;
+  // Sales time in the same week, so people whose work is not on projects do not read as idle.
+  const weekEnd = new Date(new Date(`${extras.timesheets.weekStart}T00:00:00Z`).getTime() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const { data: sales } = await db.from("time_log").select("userId, hours").not("salesEntityId", "is", null)
+    .gte("workDate", extras.timesheets.weekStart).lt("workDate", weekEnd);
+  const byUser = new Map<string, number>();
+  for (const r of (sales ?? []) as { userId: string; hours: number }[]) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + Number(r.hours));
+  for (const p of extras.timesheets.people) p.salesHours = byUser.get(p.id) ?? 0;
+  return extras;
 }

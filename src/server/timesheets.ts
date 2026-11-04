@@ -7,6 +7,7 @@ import { z } from "zod";
 import Decimal from "decimal.js";
 import { toDecimal, one } from "@/lib/decimal";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase";
+import { labelSalesRecords, salesHref, salesOptionsFor, salesRecordExists } from "@/lib/sales-records";
 import { createRecord, updateRecord } from "@/lib/db";
 import { PERMISSIONS, authorize, requirePermission, requireUser } from "@/lib/authz";
 import { hoursBetween, normaliseClock } from "@/lib/work-hours";
@@ -80,6 +81,9 @@ const timeLogSchema = z
     projectId: z.string().uuid().optional().nullable(),
     projectTaskId: z.string().uuid().optional().nullable(),
     caseId: z.string().uuid().optional().nullable(),
+    salesEntityType: z.enum(["Prospect", "Lead", "Opportunity", "Account"]).optional().nullable(),
+    salesEntityId: z.string().uuid().optional().nullable(),
+    salesActivity: z.enum(["CALL", "EMAIL", "MEETING", "PROPOSAL", "RESEARCH", "FOLLOW_UP"]).optional().nullable(),
     workDate: z.coerce.date(),
     hours: z.coerce.number().positive().max(HOURS_PER_DAY_CEILING).optional().nullable(),
     startTime: z.string().optional().nullable(),
@@ -155,10 +159,10 @@ export async function logTime(
   const data = parsed.data;
 
   // Mirrors the database's time_log_context_check.
-  if (!data.projectId && !data.projectTaskId && !data.caseId) {
+  if (!data.projectId && !data.projectTaskId && !data.caseId && !data.salesEntityId) {
     return {
       ok: false,
-      error: "Time has to be logged against a project, a task or a support case.",
+      error: "Time has to be logged against a project, a task, a support case or a sales record.",
       fieldErrors: { projectId: ["Pick something to book this against."] },
     };
   }
@@ -205,7 +209,14 @@ export async function logTime(
     // the form sent. This is the figure that feeds billableValue, utilisation
     // and every margin number, so letting a stale tab mark internal time
     // billable is how a company reads its own overhead back as revenue.
-    const billable = projectId
+    const sales = !projectId && !data.caseId && data.salesEntityType && data.salesEntityId
+      ? { salesEntityType: data.salesEntityType, salesEntityId: data.salesEntityId, salesActivity: data.salesActivity ?? null }
+      : null;
+    if (sales && !(await salesRecordExists(sales.salesEntityType, sales.salesEntityId))) {
+      return { ok: false, error: "That record no longer exists." };
+    }
+    // Sales time is never billed to a customer.
+    const billable = sales ? false : projectId
       ? await isBillableProject(db, projectId, data.billable)
       : data.billable;
 
@@ -242,7 +253,7 @@ export async function logTime(
       // The database snapshots standing rates for support-case time.
       created = await createRecord<{ id: string; projectId: string | null }>("time_log", {
         ...base,
-
+        ...(sales ?? {}),
       });
     }
 
@@ -259,6 +270,7 @@ export async function logTime(
 
     revalidatePath("/timesheets");
     if (created.projectId) revalidatePath(`/projects/${created.projectId}`);
+    if (sales) revalidatePath(salesHref(sales.salesEntityType, sales.salesEntityId) ?? "/timesheets");
     return { ok: true, data: { id: created.id } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not log the time." };
@@ -283,7 +295,7 @@ export async function updateTimeLog(
 
     const { data: existing } = await db
       .from("time_log")
-      .select("userId, approvalStatus, projectId")
+      .select("userId, approvalStatus, projectId, salesEntityId")
       .eq("id", id)
       .maybeSingle();
 
@@ -308,9 +320,10 @@ export async function updateTimeLog(
         endTime: normaliseClock(parsed.data.endTime),
         description: parsed.data.description,
         // Same rule as logTime: an edit cannot make internal time billable.
-        billable: existing.projectId
+        billable: existing.salesEntityId ? false : existing.projectId
           ? await isBillableProject(db, existing.projectId, parsed.data.billable)
           : parsed.data.billable,
+        ...(existing.salesEntityId ? { salesActivity: parsed.data.salesActivity ?? null } : {}),
         approvalStatus: "DRAFT",
         updatedAt: new Date().toISOString(),
       })
@@ -513,7 +526,8 @@ export async function getMyWeek(weekStartISO: string) {
       `${TIME_PUBLIC_COLUMNS},
        project ( id, name, projectNumber ),
        projectTask:project_task ( id, name ),
-       case:support_case ( id, caseNumber, subject )`,
+       case:support_case ( id, caseNumber, subject ),
+       salesEntityType, salesEntityId, salesActivity`,
     )
     .eq("userId", user.id)
     .gte("workDate", from.toISOString().slice(0, 10))
@@ -523,11 +537,15 @@ export async function getMyWeek(weekStartISO: string) {
 
   if (error) throw new Error(`Could not load the week: ${error.message}`);
 
+  const names = await labelSalesRecords((data ?? []).map((e) => ({ type: e.salesEntityType as string | null, id: e.salesEntityId as string | null })));
   const entries = (data ?? []).map((e) => ({
     ...e,
     project: one(e.project as never),
     projectTask: one(e.projectTask as never),
     case: one(e.case as never),
+    sales: e.salesEntityId
+      ? { type: e.salesEntityType as string, id: e.salesEntityId as string, label: names.get(`${e.salesEntityType}:${e.salesEntityId}`) ?? "Sales record", href: salesHref(e.salesEntityType as string, e.salesEntityId as string) }
+      : null,
   }));
 
   return { entries, from, to };
@@ -585,7 +603,19 @@ export async function getTimeEntryOptions() {
     return { ...project, tasks };
   });
 
-  return { projects, cases: casesRes.data ?? [] };
+  return { projects, cases: casesRes.data ?? [], sales: await salesOptionsFor(user.id) };
+}
+
+/** Time on a sales record, with what led to it. Readable by any internal user who can open the record. */
+export async function getSalesTime(type: string, id: string) {
+  await requireUser();
+  const db = await supabaseServer();
+  const { data } = await db.rpc("sales_time_for", { p_type: type, p_id: id });
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id), workDate: String(r.workDate), hours: Number(r.hours), description: String(r.description ?? ""),
+    salesActivity: (r.salesActivity as string | null) ?? null, salesEntityType: String(r.salesEntityType),
+    userName: (r.userName as string | null) ?? null, approvalStatus: String(r.approvalStatus), costRate: r.costRate == null ? null : Number(r.costRate),
+  }));
 }
 
 export async function getPendingApprovals() {

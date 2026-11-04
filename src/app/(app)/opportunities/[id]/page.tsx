@@ -1,3 +1,4 @@
+import { TimeSpentSection } from "@/components/time-spent-section";
 import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { CorrectControl } from "@/components/correction-gate";
@@ -151,6 +152,7 @@ export default async function OpportunityDetailPage({
             activities={activities}
             canWrite={can(_me, PERMISSIONS.LEAD_WRITE)}
           />
+          <TimeSpentSection type="Opportunity" id={opp.id} label={`${opp.opportunityNumber} - ${opp.name}`} />
 
               </div>
             ),

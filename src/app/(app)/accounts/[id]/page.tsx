@@ -1,3 +1,4 @@
+import { TimeSpentSection } from "@/components/time-spent-section";
 import { RecordEmail } from "@/components/record-email";
 import Link from "next/link";
 import { Timeline } from "@/components/timeline";
@@ -323,6 +324,7 @@ export default async function AccountDetailPage({
           activities={activities}
           canWrite={can(_me, PERMISSIONS.LEAD_WRITE)}
         />
+        <TimeSpentSection type="Account" id={id} label={account.name} />
       </div>
       <Timeline entityType="Account" id={id} className="mt-6" />
 

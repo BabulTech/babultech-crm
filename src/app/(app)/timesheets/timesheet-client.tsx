@@ -140,7 +140,7 @@ export function TimesheetClient({
         <CardContent className="space-y-2">
           {entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing logged this week. You can book time to any project you are an active member of, or to a support case you own.
+              Nothing logged this week. You can book time to your projects, support cases you own, or the prospects, leads, deals and accounts you work on.
             </p>
           ) : (
             entries.map((e) => {
@@ -154,6 +154,8 @@ export function TimesheetClient({
                           <Link href={`/projects/${e.project.id}`} className="hover:underline">{e.project.name}</Link>
                         ) : e.case ? (
                           <Link href={`/cases/${e.case.id}`} className="hover:underline">{e.case.caseNumber} - {e.case.subject}</Link>
+                        ) : e.sales ? (
+                          e.sales.href ? <Link href={e.sales.href} className="hover:underline">Sales: {e.sales.label}</Link> : <>Sales: {e.sales.label}</>
                         ) : "Unlinked"}
                         {e.projectTask && <span className="text-muted-foreground"> · {e.projectTask.name}</span>}
                       </p>

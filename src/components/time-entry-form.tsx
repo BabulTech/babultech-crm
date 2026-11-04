@@ -6,6 +6,7 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { logTime, updateTimeLog } from "@/server/timesheets";
 import { hoursBetween } from "@/lib/work-hours";
 import { cn } from "@/lib/utils";
+import { SALES_ACTIVITIES, SALES_TYPE_LABEL, SALES_TYPES } from "@/lib/sales-types";
 
 /**
  * The one form for logging time, used everywhere time is logged: My timesheet
@@ -23,6 +24,8 @@ export interface TimeEntryOptions {
     tasks: { id: string; name: string; billable: boolean; assignedUserId: string | null }[];
   }[];
   cases: { id: string; caseNumber: string; subject: string }[];
+  /** Prospects, leads, deals and accounts the person works on. */
+  sales?: { type: string; id: string; label: string }[];
 }
 
 export interface EditableTimeEntry {
@@ -36,6 +39,8 @@ export interface EditableTimeEntry {
   project: { id: string; name: string; projectNumber?: string } | null;
   projectTask: { id: string; name: string } | null;
   case: { id: string; caseNumber: string; subject: string } | null;
+  sales?: { type: string; id: string; label: string; href?: string | null } | null;
+  salesActivity?: string | null;
 }
 
 /** A TIME column comes back as "09:00:00"; <input type="time"> only takes "09:00". */
@@ -47,6 +52,7 @@ export function TimeEntryForm({
   options,
   entry = null,
   lockProjectId,
+  lockSales,
   defaultDate,
   minDate,
   maxDate,
@@ -58,6 +64,8 @@ export function TimeEntryForm({
   entry?: EditableTimeEntry | null;
   /** On a project's page: the project is fixed and support cases are not offered. */
   lockProjectId?: string;
+  /** On a prospect, lead, deal or account page: the record is fixed. */
+  lockSales?: { type: string; id: string; label: string };
   defaultDate?: string;
   minDate?: string;
   maxDate?: string;
@@ -66,7 +74,8 @@ export function TimeEntryForm({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [target, setTarget] = useState<"PROJECT" | "CASE">(entry?.case ? "CASE" : "PROJECT");
+  const [target, setTarget] = useState<"PROJECT" | "CASE" | "SALES">(lockSales || entry?.sales ? "SALES" : entry?.case ? "CASE" : "PROJECT");
+  const [salesKey, setSalesKey] = useState(lockSales ? `${lockSales.type}:${lockSales.id}` : "");
   const [projectId, setProjectId] = useState(lockProjectId ?? entry?.project?.id ?? "");
   const [taskId, setTaskId] = useState(entry?.projectTask?.id ?? "");
   const [startTime, setStartTime] = useState(clockValue(entry?.startTime));
@@ -74,7 +83,7 @@ export function TimeEntryForm({
   const derivedHours = hoursBetween(startTime, endTime);
 
   const project = options.projects.find((p) => p.id === projectId);
-  const internal = (target === "PROJECT" && project?.projectType === "INTERNAL") || false;
+  const internal = (target === "PROJECT" && project?.projectType === "INTERNAL") || target === "SALES";
   const lockedOut = lockProjectId && !project;
 
   function save(fd: FormData) {
@@ -87,6 +96,9 @@ export function TimeEntryForm({
       projectId: target === "PROJECT" ? projectId || null : null,
       projectTaskId: target === "PROJECT" ? taskId || null : null,
       caseId: target === "CASE" ? get("caseId") : null,
+      salesEntityType: target === "SALES" && salesKey ? salesKey.split(":")[0] : null,
+      salesEntityId: target === "SALES" && salesKey ? salesKey.split(":")[1] : null,
+      salesActivity: target === "SALES" ? get("salesActivity") : null,
       workDate: get("workDate"),
       hours: derivedHours !== null ? String(derivedHours) : get("hours"),
       startTime: startTime || null,
@@ -107,7 +119,9 @@ export function TimeEntryForm({
   }
 
   const bookedAgainst = entry
-    ? entry.case
+    ? entry.sales
+      ? `Sales: ${entry.sales.label}`
+      : entry.case
       ? `${entry.case.caseNumber} - ${entry.case.subject}`
       : `${entry.project?.name ?? "Project"}${entry.projectTask ? ` · ${entry.projectTask.name}` : ""}`
     : null;
@@ -118,9 +132,11 @@ export function TimeEntryForm({
 
       {bookedAgainst ? (
         <p className="text-sm"><span className="text-muted-foreground">Logged against </span><span className="font-medium">{bookedAgainst}</span></p>
+      ) : lockSales ? (
+        <p className="text-sm"><span className="text-muted-foreground">Logging against </span><span className="font-medium">{lockSales.label}</span></p>
       ) : !lockProjectId && (
         <div className="flex gap-2" role="radiogroup" aria-label="What you worked on">
-          {(["PROJECT", "CASE"] as const).map((t) => (
+          {(["PROJECT", "CASE", "SALES"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -132,7 +148,7 @@ export function TimeEntryForm({
                 target === t ? "border-primary bg-primary/5 font-medium text-primary" : "hover:bg-accent",
               )}
             >
-              {t === "PROJECT" ? "Project work" : "Support case"}
+              {t === "PROJECT" ? "Project work" : t === "CASE" ? "Support case" : "Sales & leads"}
             </button>
           ))}
         </div>
@@ -166,6 +182,32 @@ export function TimeEntryForm({
               </Select>
             </Field>
           </div>
+        )}
+
+        {!entry && !lockSales && target === "SALES" && (
+          <div className="sm:col-span-2">
+            <Field label="Prospect, lead, deal or account" required help="The record the time went on. Lists the open ones you own.">
+              <Select aria-label="Sales record" required value={salesKey} onChange={(e) => setSalesKey(e.target.value)}>
+                <option value="">Select…</option>
+                {SALES_TYPES.map((type) => {
+                  const rows = (options.sales ?? []).filter((s) => s.type === type);
+                  return rows.length ? (
+                    <optgroup key={type} label={SALES_TYPE_LABEL[type] + "s"}>
+                      {rows.map((s) => <option key={s.id} value={`${s.type}:${s.id}`}>{s.label}</option>)}
+                    </optgroup>
+                  ) : null;
+                })}
+              </Select>
+            </Field>
+          </div>
+        )}
+        {target === "SALES" && (
+          <Field label="Activity" help="What kind of sales work it was. Optional.">
+            <Select aria-label="Activity" name="salesActivity" defaultValue={entry?.salesActivity ?? ""}>
+              <option value="">Not specified</option>
+              {SALES_ACTIVITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </Select>
+          </Field>
         )}
 
         <Field label="Date" required help="The day you did the work, not the day you are filling this in.">
