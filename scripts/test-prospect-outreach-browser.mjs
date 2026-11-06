@@ -144,7 +144,10 @@ try {
   console.log(`\n${passed.length} checks passed.\n`);
 } finally {
   if (browser) await browser.close().catch(() => {});
-  if (ids.campaign) await db.from("prospect_campaign").delete().eq("id", ids.campaign);
+  // By name too: a run that stopped before reading the id still leaves nothing behind.
+  const { data: leftover } = await db.from("prospect_campaign").select("id").eq("name", `QA Campaign ${run}`);
+  const campaignIds = [...new Set([ids.campaign, ...(leftover ?? []).map((c) => c.id)].filter(Boolean))];
+  if (campaignIds.length) { await db.from("prospect_campaign_member").delete().in("campaignId", campaignIds); await db.from("prospect_campaign").delete().in("id", campaignIds); }
   if (ids.dataset) {
     await db.from("prospect").delete().eq("datasetId", ids.dataset);
     await db.from("prospect_dataset").delete().eq("id", ids.dataset);
