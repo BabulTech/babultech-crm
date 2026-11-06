@@ -1,4 +1,4 @@
-import { sanitizeRichText, richTextToPlain } from "./rich-text";
+import { sanitizeRichText, richTextToLines } from "./rich-text";
 
 /**
  * The HTML wrapper every outbound email gets.
@@ -135,8 +135,11 @@ const safeUrl = (value: string | null | undefined): string | null => {
 function richParagraphs(html: string, color: string, linkColor: string): string {
   const clean = sanitizeRichText(html) ?? "";
   return clean
-    .replace(/<p>/g, `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${color};">`)
-    .replace(/<(ul|ol)>/g, `<$1 style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.65;color:${color};">`)
+    // No gap under each line: the editor shows none, so a single Enter is a
+    // new line and a blank line is an empty one, exactly as written.
+    .replace(/<p>/g, `<p style="margin:0;font-size:15px;line-height:1.65;color:${color};">`)
+    .replace(/<p style="([^"]*)"><br \/><\/p>/g, `<p style="$1">&nbsp;</p>`)
+    .replace(/<(ul|ol)>/g, `<$1 style="margin:0;padding-left:22px;font-size:15px;line-height:1.65;color:${color};">`)
     .replace(/<h([1-3])>/g, `<h$1 style="margin:0 0 12px;font-size:17px;color:${color};">`)
     .replace(/<a /g, `<a style="color:${linkColor};" `);
 }
@@ -186,7 +189,7 @@ export function renderDocumentEmail(input: DocumentEmail): { html: string; text:
   const { branding: b, documentTitle, summary, action, senderName, senderTitle, messageHtml } = input;
   // A rich-text template supplies the plain version too, for the text part
   // and the inbox preview line.
-  const message = messageHtml ? richTextToPlain(messageHtml) : input.message;
+  const message = messageHtml ? richTextToLines(messageHtml) : input.message;
   const signedBy = senderTitle?.trim() ? `${senderName} (${senderTitle.trim()})` : senderName;
   // A person who wrote the email still signs it; the system does not.
   const personal = Boolean(senderName?.trim()) && !/^babultech( crm)?$/i.test(senderName.trim()) && senderName.trim() !== b.companyName;

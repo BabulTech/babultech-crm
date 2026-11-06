@@ -7,7 +7,7 @@ import { Resend } from "@/lib/mail";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase";
 import { PERMISSIONS, authorize, requireUser, can, type SessionUser as AuthedUser } from "@/lib/authz";
 import { describeInvalid } from "@/lib/form-errors";
-import { sanitizeRichText, richTextToPlain } from "@/lib/rich-text";
+import { sanitizeRichText, richTextToLines } from "@/lib/rich-text";
 import { isReservedAddress } from "@/lib/notification-mailer";
 import { renderDocumentEmail, brandingFromSettings, emailSettingsFromRow, EMAIL_SETTINGS_ID } from "@/lib/email-template";
 import { DAILY_SEND_LIMIT, EMAIL_ATTACHMENT_LIMIT, EMAIL_SCREENS, fillEmailPlaceholders, isEmailScreen, type EmailScreen } from "@/lib/email-screens";
@@ -396,7 +396,7 @@ export async function sendRecordEmail(input: z.input<typeof sendSchema>): Promis
   const now = new Date().toISOString();
   const { error: logError } = await admin.from("email").insert({
     id: emailId, updatedAt: now, direction: "OUTBOUND", subject, fromAddress: from, toAddresses: d.to, ccAddresses: d.cc.length ? d.cc : null,
-    bccAddresses: d.bcc.length ? d.bcc : null, replyTo, bodyHtml: html, bodyText: text || richTextToPlain(body), relatedEntityType: entityType,
+    bccAddresses: d.bcc.length ? d.bcc : null, replyTo, bodyHtml: html, bodyText: text || richTextToLines(body), relatedEntityType: entityType,
     relatedEntityId: d.entityId, sentReceivedAt: now, status: "DRAFT", hasAttachments: attachments.length > 0, sentById: me.id,
   });
   if (logError) return { ok: false, error: logError.message };

@@ -79,6 +79,9 @@ const CLEAN_OPTIONS: sanitizeHtml.IOptions = {
    * keeping even when the destination is not.
    */
   transformTags: {
+    // Chrome's editor starts each new line as a <div>. Kept as a line, not
+    // dropped: dropping it ran "Hi Ali," and the next line together.
+    div: "p",
     a: (tagName, attribs) => {
       const href = attribs.href ?? "";
       const kept: Record<string, string> = attribs.title ? { title: attribs.title } : {};
@@ -125,6 +128,31 @@ export function richTextToPlain(html: string | null | undefined): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The text of a rich-text value with its lines kept: one line per line the
+ * writer typed, a blank line where they left one. For an email's plain-text
+ * part, which must read the way the email was written.
+ */
+export function richTextToLines(html: string | null | undefined): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    // A line starts where a block opens: "Hi,<p>Thanks</p>" is two lines, and
+    // an empty block is a blank one.
+    .replace(/<(p|div|h[1-6]|blockquote|pre|tr)(\s[^>]*)?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
