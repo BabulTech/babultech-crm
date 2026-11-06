@@ -4,29 +4,34 @@ import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { PageHeader, Card, CardContent, CardHeader, CardTitle, StatTile, Input, Select, Button, Forbidden } from "@/components/ui";
 import { formatNumber } from "@/lib/utils";
 import { PROSPECT_PAGE_SIZE, PROSPECT_STATUSES, PROSPECT_STATUS_LABELS } from "@/lib/prospects";
-import { getProspectFilterValues, getProspectStats, listDatasets, listProspects } from "@/server/prospects";
+import { getProspectFilterValues, getProspectStats, listDatasets, listPartnerChoices, listProspectOwnerOptions, listProspects } from "@/server/prospects";
 import { ProspectsTable } from "./prospects-table";
 import { listProspectCampaigns } from "@/server/prospect-campaigns";
 
-type Params = { search?: string; datasetId?: string; status?: string; icpTier?: string; region?: string; tag?: string; page?: string; addTo?: string };
+type Params = { search?: string; datasetId?: string; status?: string; icpTier?: string; region?: string; tag?: string; partner?: string; page?: string; addTo?: string };
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const me = await requireUser();
   const canRead = can(me, PERMISSIONS.PROSPECT_READ) || can(me, PERMISSIONS.PROSPECT_WRITE);
   if (!canRead) return <Forbidden what="prospects" />;
   const canWrite = can(me, PERMISSIONS.PROSPECT_WRITE);
+  const isPartner = Boolean(me.partnerId);
+  // Handing prospects to someone: a partner's portal admin, or staff.
+  const canGive = canWrite && (!isPartner || me.portalRole === "ADMIN");
 
   const params = await searchParams;
   const page = Math.max(0, Number(params.page ?? 0) || 0);
-  const [rows, stats, values, datasets, campaigns] = await Promise.all([
+  const [rows, stats, values, datasets, campaigns, partners, owners] = await Promise.all([
     listProspects(params, page),
     getProspectStats(params),
     getProspectFilterValues(),
     listDatasets(),
     canWrite ? listProspectCampaigns() : Promise.resolve([]),
+    listPartnerChoices(),
+    canGive ? listProspectOwnerOptions() : Promise.resolve([]),
   ]);
   const addTo = params.addTo;
-  const filters = { search: params.search, datasetId: params.datasetId, status: params.status, icpTier: params.icpTier, region: params.region, tag: params.tag };
+  const filters = { search: params.search, datasetId: params.datasetId, status: params.status, icpTier: params.icpTier, region: params.region, tag: params.tag, partner: params.partner };
 
   const pages = Math.max(1, Math.ceil(stats.total / PROSPECT_PAGE_SIZE));
   const link = (changes: Record<string, string | null>) => {
@@ -43,7 +48,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader
         title="Prospects"
-        description="Businesses marketing is working through. The ones you qualify become sales leads; everything before that stays here."
+        description={isPartner
+          ? "Your prospects: the ones we have given you and the ones you imported. Qualify one and it becomes your registered lead."
+          : "Businesses marketing is working through. The ones you qualify become sales leads; everything before that stays here."}
       >
         <Button asChild variant="outline"><Link href="/prospects/datasets">Datasets</Link></Button>
         {canWrite && (
@@ -118,6 +125,14 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               {values.tags.map((v) => <option key={v} value={v}>{v}</option>)}
             </Select>
           )}
+          {partners.length > 0 && (
+            <Select name="partner" defaultValue={params.partner ?? ""} className="w-52" aria-label="Partner">
+              <option value="">Ours and partners'</option>
+              <option value="none">Ours only</option>
+              <option value="any">Any partner's</option>
+              {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          )}
           {addTo && <input type="hidden" name="addTo" value={addTo} />}
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
@@ -129,6 +144,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           defaultCampaign={addTo ?? ""}
           filters={filters}
           matching={stats.total}
+          isPartner={isPartner}
+          partners={partners}
+          owners={owners}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm text-muted-foreground">

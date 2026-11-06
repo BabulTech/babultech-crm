@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, Target, Coins, Building2, UserPlus, Package,
-  Menu, X, LogOut, MessageSquare, UsersRound,
+  Menu, X, LogOut, MessageSquare, UsersRound, Radar, Megaphone, ListChecks, BarChart3, FileText, UserPlus as UserPlus2,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { signOutAction } from "@/lib/sign-out-action";
@@ -23,6 +23,12 @@ const NAV = [
   { href: "/portal/catalogue", label: "Products & Services", icon: Package },
   { href: "/portal/commissions", label: "Commission", icon: Coins, adminOnly: true },
   { href: "/portal/activities", label: "Activities", icon: MessageSquare },
+  { href: "/prospects", label: "Prospects", icon: Radar, exact: true },
+  { href: "/prospects/campaigns", label: "Outreach campaigns", icon: Megaphone },
+  { href: "/prospects/tasks", label: "Outreach tasks", icon: ListChecks },
+  { href: "/prospects/analytics", label: "Outreach analytics", icon: BarChart3 },
+  { href: "/prospects/datasets", label: "Datasets", icon: FileText },
+  { href: "/prospects/import", label: "Import prospects", icon: UserPlus2 },
   { href: "/portal/account/team", label: "Your team", icon: UsersRound },
 ];
 

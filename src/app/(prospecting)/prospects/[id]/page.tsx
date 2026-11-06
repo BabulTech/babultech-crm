@@ -17,6 +17,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
   const me = await requireUser();
   if (!can(me, PERMISSIONS.PROSPECT_READ) && !can(me, PERMISSIONS.PROSPECT_WRITE)) return <Forbidden what="prospects" />;
   const canWrite = can(me, PERMISSIONS.PROSPECT_WRITE);
+  const isPartner = Boolean(me.partnerId);
   const { id } = await params;
   const { campaign: wanted } = await searchParams;
   const [p, datasets, outreach, campaigns] = await Promise.all([
@@ -35,7 +36,8 @@ export default async function ProspectPage({ params, searchParams }: { params: P
   const after = next ? null : await nextProspectAfter(p?.businessName ?? "", id);
   const nextHref = next ? `/prospects/${next.prospectId}?campaign=${campaignId}` : after ? `/prospects/${after}` : null;
   const canQualify = can(me, PERMISSIONS.PROSPECT_QUALIFY) && p.status === "ACTIVE";
-  const owners = canQualify ? await listProspectWorkers() : [];
+  // A partner's prospect becomes their own lead, so they choose no sales owner.
+  const owners = canQualify && !isPartner ? await listProspectWorkers() : [];
 
   const custom = Object.entries((p.customFields ?? {}) as Record<string, string>).filter(([, v]) => v);
   const website = p.website ? (/^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`) : null;
@@ -49,14 +51,14 @@ export default async function ProspectPage({ params, searchParams }: { params: P
         description={[p.industry, p.dataset?.name].filter(Boolean).join(" · ") || undefined}
       >
         {nextHref && <Button asChild><Link href={nextHref} prefetch>Next Prospect</Link></Button>}
-        <FavoriteControl entityType="Prospect" entityId={p.id} label={p.businessName} />
+        {!isPartner && <FavoriteControl entityType="Prospect" entityId={p.id} label={p.businessName} />}
         <Badge tone={p.status === "QUALIFIED" ? "success" : p.status === "ARCHIVED" ? "neutral" : "info"}>{PROSPECT_STATUS_LABELS[p.status] ?? p.status}</Badge>
       </PageHeader>
 
       {p.status === "QUALIFIED" && p.qualifiedLead && (
         <Alert tone="success">
           Qualified {p.qualifiedAt ? formatDateTime(p.qualifiedAt) : ""} and handed to sales as{" "}
-          <Link href={`/leads/${p.qualifiedLead.id}`} className="font-medium underline">{p.qualifiedLead.leadNumber}</Link>.
+          <Link href={`${isPartner ? "/portal/leads" : "/leads"}/${p.qualifiedLead.id}`} className="font-medium underline">{p.qualifiedLead.leadNumber}</Link>.
         </Alert>
       )}
 
@@ -112,7 +114,8 @@ export default async function ProspectPage({ params, searchParams }: { params: P
               campaignId={campaignId}
               people={(p.people as unknown as { id: string; name: string; role: string | null; isPrimary: boolean }[])}
               owners={owners}
-              canOpenLeads={can(me, PERMISSIONS.LEAD_READ)}
+              canOpenLeads={isPartner || can(me, PERMISSIONS.LEAD_READ)}
+              leadsPath={isPartner ? "/portal/leads" : "/leads"}
             />
           )}
           <RecordEmail entityType="Prospect" entityId={p.id} />
@@ -121,7 +124,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
           {canWrite && <ProspectEditor prospect={p as never} datasets={datasets.map((d) => ({ id: d.id, name: d.name }))} />}
         </div>
       </div>
-      <div className="mt-6"><TimeSpentSection type="Prospect" id={p.id} label={p.businessName} /></div>
+      {!isPartner && <div className="mt-6"><TimeSpentSection type="Prospect" id={p.id} label={p.businessName} /></div>}
     </>
   );
 }

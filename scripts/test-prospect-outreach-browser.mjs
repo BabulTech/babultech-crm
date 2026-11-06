@@ -44,7 +44,7 @@ async function signIn(context, user) {
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 60000 });
+  await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 60000, waitUntil: "commit" });
   return page;
 }
 
@@ -70,13 +70,13 @@ try {
   await page.getByRole("button", { name: "New campaign" }).click();
   await page.locator('input[name="name"]').fill(`QA Campaign ${run}`);
   await page.getByRole("button", { name: "Create campaign" }).click();
-  await page.waitForURL(/\/prospects\/campaigns\/[0-9a-f-]{36}/, { timeout: 30000 });
+  await page.waitForURL(/\/prospects\/campaigns\/[0-9a-f-]{36}/, { timeout: 30000, waitUntil: "commit" });
   ids.campaign = page.url().split("/").pop().split("?")[0];
   pass("A campaign is created and opens");
 
   // Add all matching prospects from the list.
   await page.getByRole("link", { name: "Add prospects" }).click();
-  await page.waitForURL(/addTo=/);
+  await page.waitForURL(/addTo=/, { waitUntil: "commit" });
   await page.goto(`${base}/prospects?addTo=${ids.campaign}&datasetId=${ids.dataset}`, { waitUntil: "networkidle" });
   assert.equal(await page.getByLabel("Campaign to add to").inputValue(), ids.campaign);
   page.once("dialog", (d) => d.accept());

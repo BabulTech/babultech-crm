@@ -100,10 +100,10 @@ export async function saveProspectCampaign(id: string | null, input: z.input<typ
   const parsed = campaignSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
   const db = await supabaseServer();
-  const row = { ...parsed.data, updatedAt: new Date().toISOString() };
+  const row = { ...parsed.data, ...(auth.user.partnerId ? { marketingCampaignId: null } : {}), updatedAt: new Date().toISOString() };
   const result = id
     ? await db.from("prospect_campaign").update(row).eq("id", id).select("id").maybeSingle()
-    : await db.from("prospect_campaign").insert({ ...row, ownerUserId: auth.user.id, createdById: auth.user.id }).select("id").single();
+    : await db.from("prospect_campaign").insert({ ...row, ownerUserId: auth.user.id, createdById: auth.user.id, partnerId: auth.user.partnerId ?? null, ...(auth.user.partnerId ? { marketingCampaignId: null } : {}) }).select("id").single();
   if (result.error) return { ok: false, error: result.error.message };
   if (!result.data) return { ok: false, error: "Only the campaign's owner or a manager can change it." };
   revalidatePath("/prospects/campaigns");
@@ -128,7 +128,9 @@ export async function setProspectCampaignMember(campaignId: string, userId: stri
  * marketing staff without lead access can still choose one.
  */
 export async function listMarketingCampaignOptions() {
-  await requireRead();
+  const me = await requireRead();
+  // Our marketing campaigns are not a partner's business.
+  if (me.partnerId) return [];
   const { data } = await supabaseAdmin().from("campaign").select("id, name, status").is("deletedAt", null).order("name");
   return (data ?? []) as { id: string; name: string; status: string }[];
 }
@@ -137,7 +139,11 @@ export async function listMarketingCampaignOptions() {
 export async function listProspectWorkers() {
   await requireRead();
   const db = await supabaseServer();
-  const { data } = await db.from("app_user").select("id, fullName, jobTitle").eq("status", "ACTIVE").is("deletedAt", null).is("partnerId", null).order("fullName");
+  const me = await requireUser();
+  // A partner works with their own logins; staff with staff.
+  const { data } = me.partnerId
+    ? await supabaseAdmin().from("app_user").select("id, fullName, jobTitle").eq("status", "ACTIVE").is("deletedAt", null).eq("partnerId", me.partnerId).order("fullName")
+    : await db.from("app_user").select("id, fullName, jobTitle").eq("status", "ACTIVE").is("deletedAt", null).is("partnerId", null).order("fullName");
   return (data ?? []) as { id: string; fullName: string; jobTitle: string | null }[];
 }
 

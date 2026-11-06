@@ -148,6 +148,7 @@ export function ProspectImporter({ datasets }: { datasets: { id: string; name: s
       if (!result.ok) { total.errors.push(`Rows ${i + 1}–${i + BATCH}: ${result.error}`); }
       else {
         total.imported += result.data.imported; total.updated += result.data.updated; total.skipped += result.data.skipped;
+        total.alreadyOnFile = (total.alreadyOnFile ?? 0) + (result.data.alreadyOnFile ?? 0);
         total.errors.push(...result.data.errors);
       }
       setDone(Math.min(prepared.length, i + BATCH));
@@ -263,7 +264,7 @@ export function ProspectImporter({ datasets }: { datasets: { id: string; name: s
             {summary && (
               <Alert tone={summary.errors.length ? "warning" : "success"}>
                 <p>
-                  Imported {summary.imported.toLocaleString()} new, updated {summary.updated.toLocaleString()}, skipped {summary.skipped.toLocaleString()} already here
+                  Imported {summary.imported.toLocaleString()} new, updated {summary.updated.toLocaleString()}, skipped {summary.skipped.toLocaleString()} already here{summary.alreadyOnFile ? ` (${summary.alreadyOnFile.toLocaleString()} of them already in our records, so left out)` : ""}
                   {summary.invalid ? `, left out ${summary.invalid.toLocaleString()} without a business name` : ""}.
                 </p>
                 {summary.errors.slice(0, 5).map((e) => <p key={e} className="mt-1 text-xs">{e}</p>)}

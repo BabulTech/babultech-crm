@@ -7,7 +7,8 @@ import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Field, Select,
 import { qualifyProspect } from "@/server/prospect-qualify";
 
 /** Hands a prospect to sales as a CRM lead. */
-export function QualifyButton({ prospectId, campaignId, people, owners, canOpenLeads }: {
+export function QualifyButton({ prospectId, campaignId, people, owners, canOpenLeads, leadsPath = "/leads" }: {
+  leadsPath?: string;
   prospectId: string;
   campaignId: string | null;
   people: { id: string; name: string; role: string | null; isPrimary: boolean }[];
@@ -42,7 +43,7 @@ export function QualifyButton({ prospectId, campaignId, people, owners, canOpenL
               prospectId, campaignId, ownerUserId: String(f.get("ownerUserId") ?? ""), personId: String(f.get("personId") ?? ""), note: String(f.get("note") ?? ""),
             });
             if (!r.ok) { setError(r.error); return; }
-            if (canOpenLeads) softGo(`/leads/${r.data.leadId}`);
+            if (canOpenLeads) softGo(`${leadsPath}/${r.data.leadId}`);
             else setDone(r.data.leadNumber);
           });
         }}>
@@ -50,12 +51,16 @@ export function QualifyButton({ prospectId, campaignId, people, owners, canOpenL
             This creates a sales lead with the business, its contact details and what marketing has logged. The prospect is then marked Qualified.
           </p>
           {error && <Alert tone="danger">{error}</Alert>}
-          <Field label="Sales owner" required help="Who in sales takes it from here.">
-            <Select name="ownerUserId" required defaultValue="">
-              <option value="" disabled>Choose…</option>
-              {owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}{o.jobTitle ? ` · ${o.jobTitle}` : ""}</option>)}
-            </Select>
-          </Field>
+          {owners.length > 0 ? (
+            <Field label="Sales owner" required help="Who in sales takes it from here.">
+              <Select name="ownerUserId" required defaultValue="">
+                <option value="" disabled>Choose…</option>
+                {owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}
+              </Select>
+            </Field>
+          ) : (
+            <p className="text-sm text-muted-foreground">It becomes your registered lead, credited to your partnership, as if you had added it under Leads.</p>
+          )}
           <Field label="Contact person" help="Becomes the lead's name. Without one, the business name is used.">
             <Select name="personId" defaultValue={primary?.id ?? ""}>
               <option value="">The business</option>

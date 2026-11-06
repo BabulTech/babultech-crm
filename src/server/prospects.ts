@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { supabaseServer } from "@/lib/supabase";
+import { supabaseAdmin, supabaseServer } from "@/lib/supabase";
 import { PERMISSIONS, authorize, requireUser, can } from "@/lib/authz";
 import { describeInvalid } from "@/lib/form-errors";
 import { normalizeEmail, normalizeName, normalizePhone, normalizeWebsite } from "@/lib/prospect-normalize";
@@ -28,9 +28,11 @@ export interface ProspectFilters {
   icpTier?: string;
   region?: string;
   tag?: string;
+  /** Staff only: "none", "any", or one partner's id. */
+  partner?: string;
 }
 
-const FILTER_KEYS = ["search", "datasetId", "status", "icpTier", "region", "tag"] as const;
+const FILTER_KEYS = ["search", "datasetId", "status", "icpTier", "region", "tag", "partner"] as const;
 const filterPayload = (f?: ProspectFilters) =>
   Object.fromEntries(FILTER_KEYS.filter((k) => f?.[k]).map((k) => [k, f![k]]));
 
@@ -59,10 +61,13 @@ export interface ProspectRow {
   phoneCount: number;
   emailCount: number;
   dataset: string | null;
+  /** The partner working it, for staff. */
+  partner: string | null;
+  owner: string | null;
 }
 
 export async function listProspects(filters?: ProspectFilters, page = 0): Promise<ProspectRow[]> {
-  await requireProspectRead();
+  const me = await requireProspectRead();
   const db = await supabaseServer();
   const { data, error } = await db.rpc("prospect_page", { p_filters: filterPayload(filters), p_limit: PAGE_SIZE, p_offset: Math.max(0, page) * PAGE_SIZE });
   if (error) throw new Error(`Could not load prospects: ${error.message}`);
@@ -80,6 +85,16 @@ export async function listProspects(filters?: ProspectFilters, page = 0): Promis
     return { pick: mine.find((x) => x.isPrimary) ?? mine[0], count: mine.length };
   };
   const datasetName = new Map((datasets.data ?? []).map((d) => [d.id, d.name]));
+  // Names of partners and owners: partners' own logins for a partner, everyone for staff.
+  const admin = supabaseAdmin();
+  const partnerIds = me.partnerId ? [] : [...new Set(rows.map((r) => r.partnerId).filter(Boolean))] as string[];
+  const ownerIds = [...new Set(rows.map((r) => r.ownerUserId).filter(Boolean))] as string[];
+  const [partners, owners] = await Promise.all([
+    partnerIds.length ? admin.from("partner").select("id, displayName").in("id", partnerIds) : Promise.resolve({ data: [] as { id: string; displayName: string }[] }),
+    ownerIds.length ? admin.from("app_user").select("id, fullName, partnerId").in("id", ownerIds) : Promise.resolve({ data: [] as { id: string; fullName: string; partnerId: string | null }[] }),
+  ]);
+  const partnerName = new Map((partners.data ?? []).map((p) => [p.id, p.displayName as string]));
+  const ownerName = new Map((owners.data ?? []).filter((o) => !me.partnerId || o.partnerId === me.partnerId).map((o) => [o.id, o.fullName as string]));
   return rows.map((r) => {
     const p = first(phones.data as { prospectId: string; phone: string; isPrimary: boolean }[], String(r.id));
     const e = first(emails.data as { prospectId: string; email: string; isPrimary: boolean }[], String(r.id));
@@ -100,6 +115,8 @@ export async function listProspects(filters?: ProspectFilters, page = 0): Promis
       phoneCount: p.count,
       emailCount: e.count,
       dataset: r.datasetId ? datasetName.get(String(r.datasetId)) ?? null : null,
+      partner: r.partnerId ? partnerName.get(String(r.partnerId)) ?? null : null,
+      owner: r.ownerUserId ? ownerName.get(String(r.ownerUserId)) ?? null : null,
     };
   });
 }
@@ -161,7 +178,7 @@ export async function saveDataset(id: string | null, input: z.input<typeof datas
   const row = { name: parsed.data.name, description: parsed.data.description || null, updatedAt: new Date().toISOString() };
   const result = id
     ? await db.from("prospect_dataset").update(row).eq("id", id).select("id").single()
-    : await db.from("prospect_dataset").insert({ ...row, createdById: auth.user.id }).select("id").single();
+    : await db.from("prospect_dataset").insert({ ...row, createdById: auth.user.id, partnerId: auth.user.partnerId ?? null }).select("id").single();
   if (result.error) {
     return { ok: false, error: /duplicate|unique/i.test(result.error.message) ? "A dataset with that name already exists." : result.error.message };
   }
@@ -390,7 +407,7 @@ const importSchema = z.object({
   rows: z.array(importRowSchema).min(1).max(1000),
 });
 
-export interface ImportBatchResult { imported: number; updated: number; skipped: number; invalid: number; errors: string[] }
+export interface ImportBatchResult { imported: number; updated: number; skipped: number; invalid: number; errors: string[]; alreadyOnFile?: number }
 
 /**
  * Imports one batch of rows already read from the sheet in the browser. The
@@ -436,6 +453,22 @@ export async function importProspectBatch(input: z.input<typeof importSchema>): 
   if (matchOn.includes("phone")) await lookup("prospect_phone", "phoneNorm", [...new Set(prepared.flatMap((p) => p.phones.map(([n]) => n)))], (v) => `p:${v}`);
   if (matchOn.includes("email")) await lookup("prospect_email", "emailNorm", [...new Set(prepared.flatMap((p) => p.emails.map(([n]) => n)))], (v) => `e:${v}`);
 
+  // A partner sees only their own prospects, so the lookups above miss everyone
+  // else's. This finds any match in the CRM; one that is not theirs is left out
+  // and only counted, so they learn nothing about whose it is.
+  const elsewhere = new Set<string>();
+  if (auth.user.partnerId) {
+    const { data: conflicts } = await supabaseAdmin().rpc("prospect_partner_conflicts", {
+      p_websites: [...new Set(prepared.map((p) => p.websiteNorm).filter(Boolean) as string[])],
+      p_names: matchOn.includes("name") ? [...new Set(prepared.map((p) => p.nameNorm).filter(Boolean) as string[])] : [],
+      p_phones: [...new Set(prepared.flatMap((p) => p.phones.map(([n]) => n)))],
+      p_emails: [...new Set(prepared.flatMap((p) => p.emails.map(([n]) => n)))],
+    });
+    for (const c of (conflicts ?? []) as { key: string; partnerId: string | null }[]) {
+      if (c.partnerId !== auth.user.partnerId) elsewhere.add(c.key);
+    }
+  }
+
   const keysOf = (p: (typeof prepared)[number]) => [
     ...(matchOn.includes("website") && p.websiteNorm ? [`w:${p.websiteNorm}`] : []),
     ...(matchOn.includes("name") && p.nameNorm ? [`n:${p.nameNorm}`] : []),
@@ -447,6 +480,8 @@ export async function importProspectBatch(input: z.input<typeof importSchema>): 
   const toInsert: { id: string; p: (typeof prepared)[number] }[] = [];
   for (const p of prepared) {
     const keys = keysOf(p);
+    const own = auth.user.partnerId ? [`w:${p.websiteNorm}`, `n:${p.nameNorm}`, ...p.phones.map(([n]) => `p:${n}`), ...p.emails.map(([n]) => `e:${n}`)] : [];
+    if (own.some((k) => elsewhere.has(k))) { result.alreadyOnFile = (result.alreadyOnFile ?? 0) + 1; result.skipped++; continue; }
     const match = keys.map((k) => existing.get(k)).find(Boolean);
     if (match) {
       if (duplicates === "skip") { result.skipped++; continue; }
@@ -484,7 +519,7 @@ export async function importProspectBatch(input: z.input<typeof importSchema>): 
       industry: p.r.industry || null, street: p.r.street || null, city: p.r.city || null, region: p.r.region || null, country: p.r.country || null,
       icpTier: p.r.icpTier || null, googleRating: p.r.googleRating ?? null, googleReviewCount: p.r.googleReviewCount ?? null, googleMapsUrl: p.r.googleMapsUrl || null,
       tags: [...new Set(p.r.tags.filter(Boolean))], customFields: p.r.customFields, datasetId, source: source || null,
-      createdById: auth.user.id, ownerUserId: auth.user.id, updatedAt: now,
+      createdById: auth.user.id, ownerUserId: auth.user.id, partnerId: auth.user.partnerId ?? null, updatedAt: now,
     })));
     if (error) return { ok: false, error: `Could not save this batch: ${error.message}` };
     const phones = toInsert.flatMap(({ id, p }) => p.phones.map(([n, raw], i) => ({ prospectId: id, phone: raw, phoneNorm: n, isPrimary: i === 0 })));
@@ -505,4 +540,78 @@ export async function nextProspectAfter(businessName: string, id: string): Promi
   if (data?.[0]) return String(data[0].id);
   const { data: first } = await query();
   return first?.[0] ? String(first[0].id) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Who works a prospect
+// ---------------------------------------------------------------------------
+
+/** People a prospect can be given to: a partner's own logins, or staff. */
+export async function listProspectOwnerOptions(): Promise<{ id: string; fullName: string }[]> {
+  const me = await requireProspectRead();
+  const admin = supabaseAdmin();
+  let q = admin.from("app_user").select("id, fullName").eq("status", "ACTIVE").is("deletedAt", null).order("fullName");
+  q = me.partnerId ? q.eq("partnerId", me.partnerId) : q.is("partnerId", null).eq("userType", "INTERNAL");
+  const { data } = await q;
+  return (data ?? []) as { id: string; fullName: string }[];
+}
+
+/**
+ * Gives prospects to one person. A partner's portal admin gives them to their
+ * own logins; the database refuses anything else.
+ */
+export async function setProspectOwners(ids: string[], userId: string | null): Promise<ActionResult<{ changed: number }>> {
+  const auth = await authorize(PERMISSIONS.PROSPECT_WRITE);
+  if (!auth.ok) return auth;
+  if (auth.user.partnerId && auth.user.portalRole !== "ADMIN") return { ok: false, error: "Only your portal admin can hand prospects to someone." };
+  if (!ids.length) return { ok: false, error: "Select some prospects first." };
+  const db = await supabaseServer();
+  const { data, error } = await db.from("prospect").update({ ownerUserId: userId, updatedAt: new Date().toISOString() }).in("id", ids.slice(0, 1000)).select("id");
+  if (error) return { ok: false, error: /row-level security|violates/i.test(error.message) ? "Choose someone from your own team." : error.message };
+  revalidatePath("/prospects");
+  return { ok: true, data: { changed: data?.length ?? 0 } };
+}
+
+/**
+ * Staff only: give prospects to a partner, or (partnerId null) take them back.
+ * Taking one back ends the partner's access to it and everything logged on it.
+ */
+export async function assignProspectsToPartner(ids: string[], partnerId: string | null): Promise<ActionResult<{ changed: number }>> {
+  const auth = await authorize(PERMISSIONS.ADMIN);
+  if (!auth.ok) return auth;
+  if (auth.user.partnerId) return { ok: false, error: "Not available in the portal." };
+  if (!ids.length) return { ok: false, error: "Select some prospects first." };
+  const admin = supabaseAdmin();
+  let partnerName = "";
+  if (partnerId) {
+    const { data: partner } = await admin.from("partner").select("displayName, status").eq("id", partnerId).is("deletedAt", null).maybeSingle();
+    if (!partner) return { ok: false, error: "That partner does not exist." };
+    if (partner.status !== "ACTIVE") return { ok: false, error: "Only an active partner can be given prospects." };
+    partnerName = partner.displayName as string;
+  }
+  const now = new Date().toISOString();
+  // Given: nobody on their side owns it yet, so their portal admin hands it out.
+  // Taken back: it returns to whoever took it.
+  const { data, error } = await admin.from("prospect")
+    .update({ partnerId, ownerUserId: partnerId ? null : auth.user.id, updatedAt: now })
+    .in("id", ids.slice(0, 1000)).is("deletedAt", null).select("id, businessName");
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as { id: string; businessName: string }[];
+  if (rows.length) {
+    await admin.from("activity_event").insert(rows.map((r) => ({
+      category: "RECORD", action: partnerId ? "PROSPECT_TO_PARTNER" : "PROSPECT_TAKEN_BACK",
+      summary: partnerId ? `Prospect given to partner ${partnerName}: ${r.businessName}` : `Prospect taken back from partner: ${r.businessName}`,
+      actorId: auth.user.id, actorName: auth.user.fullName, entityType: "Prospect", entityId: r.id,
+    })));
+  }
+  revalidatePath("/prospects");
+  return { ok: true, data: { changed: rows.length } };
+}
+
+/** Active partners, for the Assign to partner control. */
+export async function listPartnerChoices(): Promise<{ id: string; name: string }[]> {
+  const me = await requireUser();
+  if (me.partnerId || !can(me, PERMISSIONS.ADMIN)) return [];
+  const { data } = await supabaseAdmin().from("partner").select("id, displayName").eq("status", "ACTIVE").is("deletedAt", null).order("displayName");
+  return (data ?? []).map((p) => ({ id: p.id as string, name: p.displayName as string }));
 }

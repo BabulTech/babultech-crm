@@ -4,21 +4,29 @@ import { softReload } from "@/components/soft-navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Input, Select, Table, THead, TBody, TR, TH, TD } from "@/components/ui";
-import { tagProspects, type ProspectFilters, type ProspectRow } from "@/server/prospects";
+import { assignProspectsToPartner, setProspectOwners, tagProspects, type ProspectFilters, type ProspectRow } from "@/server/prospects";
 import { addFilteredProspectsToCampaign, addProspectsToCampaign } from "@/server/prospect-campaigns";
 
 /** The page of prospects, with selection for tagging several at once. */
-export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, filters, matching }: {
+export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, filters, matching, isPartner = false, partners = [], owners = [] }: {
   rows: ProspectRow[];
   canWrite: boolean;
   campaigns: { id: string; name: string }[];
   defaultCampaign: string;
   filters: ProspectFilters;
   matching: number;
+  /** A partner's login: no mass email, and no Partner column. */
+  isPartner?: boolean;
+  /** Staff administrators: partners prospects can be given to. */
+  partners?: { id: string; name: string }[];
+  /** People prospects can be handed to; empty when the reader may not. */
+  owners?: { id: string; fullName: string }[];
 }) {
   const [campaign, setCampaign] = useState(defaultCampaign);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tag, setTag] = useState("");
+  const [partner, setPartner] = useState("");
+  const [owner, setOwner] = useState("");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [pending, start] = useTransition();
   const all = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -35,6 +43,30 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
     start(async () => {
       const result = await tagProspects([...selected], [tag]);
       if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
+      softReload();
+    });
+  }
+
+  function giveToPartner(take: boolean) {
+    const name = partners.find((p) => p.id === partner)?.name ?? "the partner";
+    if (!window.confirm(take
+      ? `Take ${selected.size} prospects back? Their partner loses access to them and everything they logged on them.`
+      : `Give ${selected.size} prospects to ${name}? Their portal admin decides who works each one.`)) return;
+    start(async () => {
+      const result = await assignProspectsToPartner([...selected], take ? null : partner);
+      if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
+      setSelected(new Set());
+      setMessage({ tone: "success", text: take ? `Took back ${result.data.changed}.` : `Gave ${result.data.changed} to ${name}.` });
+      softReload();
+    });
+  }
+
+  function giveToPerson() {
+    start(async () => {
+      const result = await setProspectOwners([...selected], owner || null);
+      if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
+      setSelected(new Set());
+      setMessage({ tone: "success", text: `Handed over ${result.data.changed}.` });
       softReload();
     });
   }
@@ -66,20 +98,41 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
       {message && <Alert tone={message.tone}>{message.text}</Alert>}
     </div>
   );
+  const notice = message && !campaignBar && <div className="border-b px-4 py-2"><Alert tone={message.tone}>{message.text}</Alert></div>;
 
   if (!rows.length) {
-    return <p className="p-6 text-sm text-muted-foreground">No prospects here yet. Import a dataset to start.</p>;
+    return <p className="p-6 text-sm text-muted-foreground">{isPartner ? "No prospects here yet. Import your own, or wait for us to give you some." : "No prospects here yet. Import a dataset to start."}</p>;
   }
 
   return (
     <>
       {campaignBar}
+      {notice}
       {canWrite && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-4 py-2 text-sm">
           <span className="font-medium">{selected.size} selected</span>
           <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Tag, e.g. Call this week" className="h-8 w-56" aria-label="Tag to add" />
           <Button size="sm" onClick={applyTag} disabled={pending || !tag.trim()}>{pending ? "Tagging…" : "Add tag"}</Button>
-          <Button asChild size="sm" variant="outline"><a href={`/email/compose?type=Prospect&ids=${[...selected].join(",")}`}>Email {selected.size} selected</a></Button>
+          {!isPartner && <Button asChild size="sm" variant="outline"><a href={`/email/compose?type=Prospect&ids=${[...selected].join(",")}`}>Email {selected.size} selected</a></Button>}
+          {owners.length > 0 && (
+            <>
+              <Select aria-label="Give to" value={owner} onChange={(e) => setOwner(e.target.value)} className="h-8 w-48">
+                <option value="">{isPartner ? "Nobody yet (you decide)" : "Nobody"}</option>
+                {owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}
+              </Select>
+              <Button size="sm" variant="outline" disabled={pending} onClick={giveToPerson}>Give to</Button>
+            </>
+          )}
+          {partners.length > 0 && (
+            <>
+              <Select aria-label="Partner" value={partner} onChange={(e) => setPartner(e.target.value)} className="h-8 w-48">
+                <option value="">Choose a partner…</option>
+                {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </Select>
+              <Button size="sm" variant="outline" disabled={pending || !partner} onClick={() => giveToPartner(false)}>Assign to partner</Button>
+              <Button size="sm" variant="ghost" disabled={pending} onClick={() => giveToPartner(true)}>Take back</Button>
+            </>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
         </div>
       )}
@@ -95,6 +148,8 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
             <TH>Business</TH>
             <TH>Phone</TH>
             <TH priority="secondary">Email</TH>
+            {partners.length > 0 && <TH>Partner</TH>}
+            <TH priority="secondary">Owner</TH>
             <TH priority="secondary">ICP tier</TH>
             <TH priority="tertiary">Region</TH>
             <TH priority="tertiary">Google</TH>
@@ -127,6 +182,8 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
                 {r.email ?? "—"}
                 {r.emailCount > 1 && <span className="ml-1 text-xs text-muted-foreground">+{r.emailCount - 1}</span>}
               </TD>
+              {partners.length > 0 && <TD className="text-sm">{r.partner ?? "—"}</TD>}
+              <TD priority="secondary" className="text-sm">{r.owner ?? "—"}</TD>
               <TD priority="secondary" className="text-sm">{r.icpTier ?? "—"}</TD>
               <TD priority="tertiary" className="text-sm">{r.region ?? "—"}</TD>
               <TD priority="tertiary" className="whitespace-nowrap text-sm">

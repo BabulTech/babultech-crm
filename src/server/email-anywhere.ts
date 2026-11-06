@@ -53,6 +53,8 @@ async function readSetting(entityType: EmailScreen): Promise<EmailScreenSetting>
 
 /** Whether this person may email from this kind of record's page. */
 async function mayUse(me: AuthedUser, setting: EmailScreenSetting): Promise<boolean> {
+  // Partners email their own prospects, one at a time, and nothing else.
+  if (me.partnerId) return setting.entityType === "Prospect";
   if (!setting.enabled) return false;
   if (!setting.roleIds.length) return can(me, EMAIL_SCREENS[setting.entityType].permission);
   if (can(me, PERMISSIONS.ADMIN)) return true;
@@ -65,6 +67,8 @@ async function mayUse(me: AuthedUser, setting: EmailScreenSetting): Promise<bool
  * otherwise null. Mass email from lists uses the same rule as record pages.
  */
 export async function emailScreenAccess(entityType: string): Promise<{ defaultSenderId: string | null; defaultTemplateId: string | null } | null> {
+  // Mass email is not open to partners.
+  if ((await requireUser()).partnerId) return null;
   if (!isEmailScreen(entityType)) return null;
   const me = await requireUser();
   const setting = await readSetting(entityType);
@@ -274,7 +278,13 @@ export async function getEmailComposeContext(entityType: string, entityId: strin
     admin.from("email_template").select("id, name, subject, body").eq("active", true).order("name"),
     (await supabaseServer()).from("document").select("id, \"fileName\", \"fileSizeBytes\", \"mimeType\"").eq("relatedEntityType", EMAIL_SCREENS[entityType].docType).eq("relatedEntityId", entityId).is("deletedAt", null).order("createdAt", { ascending: false }).limit(50),
   ]);
-  const senderList = (senders.data ?? []) as { id: string; label: string; fromName: string | null; fromAddress: string; replyTo: string | null; isDefault: boolean }[];
+  let senderList = (senders.data ?? []) as { id: string; label: string; fromName: string | null; fromAddress: string; replyTo: string | null; isDefault: boolean }[];
+  // A partner sends as themselves through our default address.
+  if (me.partnerId) {
+    const own = await partnerSender(me);
+    const base = senderList.find((s) => s.isDefault) ?? senderList[0];
+    senderList = base ? [{ ...base, label: own.fromName, fromName: own.fromName, replyTo: own.replyTo }] : [];
+  }
   return {
     entityType, entityId, recordName: record.name,
     suggestions: record.suggestions.filter((s, i, all) => all.findIndex((x) => x.email.toLowerCase() === s.email.toLowerCase()) === i),
@@ -349,8 +359,10 @@ export async function sendRecordEmail(input: z.input<typeof sendSchema>): Promis
 
   const { data: sender } = await admin.from("email_sender").select("\"fromName\", \"fromAddress\", \"replyTo\"").eq("id", d.senderId).eq("active", true).maybeSingle();
   if (!sender) return { ok: false, error: "From: choose one of the sender addresses." };
-  const from = sender.fromName ? `${sender.fromName} <${sender.fromAddress}>` : String(sender.fromAddress);
-  const replyTo = d.replyTo || sender.replyTo || me.email;
+  const own = me.partnerId ? await partnerSender(me) : null;
+  const from = own ? `${own.fromName} <${sender.fromAddress}>` : sender.fromName ? `${sender.fromName} <${sender.fromAddress}>` : String(sender.fromAddress);
+  // Replies to a partner's email go to the partner, never to us.
+  const replyTo = own ? own.replyTo : d.replyTo || sender.replyTo || me.email;
 
   // Attachments: this email's uploads, and documents already on the record.
   const attachments: { fileName: string; mimeType: string | null; size: number; storagePath: string; documentId: string | null }[] = [];
@@ -447,4 +459,10 @@ export async function listRecordEmails(entityType: string, entityId: string) {
     sender: (one(e.sender) as { fullName?: string } | null)?.fullName ?? null,
     attachments: ((e.attachments ?? []) as { fileName: string; documentId: string | null }[]),
   }));
+}
+
+/** How a partner's email is signed: "Partner via BabulTech", replies to the partner. */
+async function partnerSender(me: AuthedUser): Promise<{ fromName: string; replyTo: string }> {
+  const { data } = await supabaseAdmin().from("partner").select("displayName, email").eq("id", me.partnerId!).maybeSingle();
+  return { fromName: `${data?.displayName ?? me.fullName} via BabulTech`, replyTo: (data?.email as string | null) || me.email };
 }

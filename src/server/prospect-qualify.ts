@@ -24,7 +24,8 @@ import type { ActionResult } from "./partners";
 
 const qualifySchema = z.object({
   prospectId: z.string().uuid(),
-  ownerUserId: z.string().uuid({ message: "Sales owner: choose one from the list." }),
+  // Staff choose who in sales takes it; a partner keeps it as their own lead.
+  ownerUserId: z.string().uuid({ message: "Sales owner: choose one from the list." }).optional().nullable().or(z.literal("").transform(() => null)),
   personId: z.string().uuid().optional().nullable().or(z.literal("").transform(() => null)),
   campaignId: z.string().uuid().optional().nullable().or(z.literal("").transform(() => null)),
   note: z.string().max(4000).optional().nullable(),
@@ -54,8 +55,9 @@ export async function qualifyProspect(input: z.input<typeof qualifySchema>): Pro
   if (p.status === "QUALIFIED" && p.qualifiedLeadId) return { ok: false, error: "This prospect has already been qualified." };
 
   const admin = supabaseAdmin();
+  if (!auth.user.partnerId && !ownerUserId) return { ok: false, error: "Sales owner: choose one from the list.", fieldErrors: { ownerUserId: ["Choose one from the list."] } };
   const { data: owner } = await admin.from("app_user").select("id, status, \"partnerId\"").eq("id", ownerUserId).is("deletedAt", null).maybeSingle();
-  if (!owner || owner.status !== "ACTIVE" || owner.partnerId) return { ok: false, error: "Sales owner: choose an active member of the team." };
+  if (!auth.user.partnerId && (!owner || owner.status !== "ACTIVE" || owner.partnerId)) return { ok: false, error: "Sales owner: choose an active member of the team." };
 
   const people = (p.people ?? []) as { id: string; name: string; role: string | null; email: string | null; phone: string | null; personalEmail: string | null; personalPhone: string | null }[];
   const person = personId ? people.find((x) => x.id === personId) : null;
@@ -93,7 +95,25 @@ export async function qualifyProspect(input: z.input<typeof qualifySchema>): Pro
     lines.length ? `Outreach before qualifying:\n${lines.join("\n")}` : null,
   ].filter(Boolean).join("\n\n") || null;
 
-  const { data: created, error } = await admin.rpc("create_record", {
+  // A partner's prospect becomes the partner's own registered lead, through the
+  // same database function as a lead they add in the portal: it is credited to
+  // them, checked for duplicates, and given to their partner manager.
+  const partnerLead = auth.user.partnerId
+    ? await db.rpc("partner_save_lead", { p_id: null, p_lead: {
+        firstName: name.firstName, lastName: name.lastName, companyName: String(p.businessName).slice(0, 200),
+        jobTitle: person?.role ?? null, email, phone, website: p.website ? String(p.website).slice(0, 255) : null,
+        industry: p.industry ? String(p.industry).slice(0, 100) : null, street: p.street ? String(p.street).slice(0, 255) : null,
+        city: p.city, state: p.region ? String(p.region).slice(0, 100) : null, country: p.country,
+        leadSource: `Prospecting${campaignName ? ` - ${campaignName}` : ""}`.slice(0, 100), description,
+      } })
+    : null;
+  if (partnerLead?.error) {
+    const dup = duplicateFromError(partnerLead.error);
+    return { ok: false, error: dup ? "This business is already in our records, so it cannot be registered again. Your partner manager can tell you more." : `Could not register the lead: ${partnerLead.error.message}` };
+  }
+  const { data: created, error } = partnerLead
+    ? await admin.from("lead").select("id, leadNumber").eq("id", (partnerLead.data as { id: string }).id).single()
+    : await admin.rpc("create_record", {
     p_table: "lead",
     p_payload: {
       firstName: name.firstName, lastName: name.lastName, companyName: String(p.businessName).slice(0, 200),
@@ -125,7 +145,7 @@ export async function qualifyProspect(input: z.input<typeof qualifySchema>): Pro
   });
 
   revalidatePath(`/prospects/${prospectId}`);
-  revalidatePath("/leads");
+  revalidatePath(auth.user.partnerId ? "/portal/leads" : "/leads");
   return { ok: true, data: { leadId: lead.id, leadNumber: lead.leadNumber } };
 }
 
