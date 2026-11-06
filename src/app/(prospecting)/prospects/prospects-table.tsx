@@ -4,7 +4,7 @@ import { softReload } from "@/components/soft-navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Alert, Badge, Button, Input, Select, Table, THead, TBody, TR, TH, TD } from "@/components/ui";
-import { assignProspectsToPartner, setProspectOwners, tagProspects, type ProspectFilters, type ProspectRow } from "@/server/prospects";
+import { setProspectOwners, tagProspects, type ProspectFilters, type ProspectRow } from "@/server/prospects";
 import { addFilteredProspectsToCampaign, addProspectsToCampaign } from "@/server/prospect-campaigns";
 
 /** The page of prospects, with selection for tagging several at once. */
@@ -17,15 +17,14 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
   matching: number;
   /** A partner's login: no mass email, and no Partner column. */
   isPartner?: boolean;
-  /** Staff administrators: partners prospects can be given to. */
+  /** Staff: the partner list, for the Partner column only. Handing prospects to a partner is on the partner's page. */
   partners?: { id: string; name: string }[];
-  /** People prospects can be handed to; empty when the reader may not. */
+  /** A partner's portal admin: their own logins, to hand prospects to. */
   owners?: { id: string; fullName: string }[];
 }) {
   const [campaign, setCampaign] = useState(defaultCampaign);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tag, setTag] = useState("");
-  const [partner, setPartner] = useState("");
   const [owner, setOwner] = useState("");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -47,23 +46,10 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
     });
   }
 
-  function giveToPartner(take: boolean) {
-    const name = partners.find((p) => p.id === partner)?.name ?? "the partner";
-    if (!window.confirm(take
-      ? `Take ${selected.size} prospects back? Their partner loses access to them and everything they logged on them.`
-      : `Give ${selected.size} prospects to ${name}? Their portal admin decides who works each one.`)) return;
-    start(async () => {
-      const result = await assignProspectsToPartner([...selected], take ? null : partner);
-      if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
-      setSelected(new Set());
-      setMessage({ tone: "success", text: take ? `Took back ${result.data.changed}.` : `Gave ${result.data.changed} to ${name}.` });
-      softReload();
-    });
-  }
-
   function giveToPerson() {
+    if (!owner) return;
     start(async () => {
-      const result = await setProspectOwners([...selected], owner || null);
+      const result = await setProspectOwners([...selected], owner);
       if (!result.ok) { setMessage({ tone: "danger", text: result.error }); return; }
       setSelected(new Set());
       setMessage({ tone: "success", text: `Handed over ${result.data.changed}.` });
@@ -117,20 +103,10 @@ export function ProspectsTable({ rows, canWrite, campaigns, defaultCampaign, fil
           {owners.length > 0 && (
             <>
               <Select aria-label="Give to" value={owner} onChange={(e) => setOwner(e.target.value)} className="h-8 w-48">
-                <option value="">{isPartner ? "Nobody yet (you decide)" : "Nobody"}</option>
+                <option value="">Choose a person…</option>
                 {owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}
               </Select>
-              <Button size="sm" variant="outline" disabled={pending} onClick={giveToPerson}>Give to</Button>
-            </>
-          )}
-          {partners.length > 0 && (
-            <>
-              <Select aria-label="Partner" value={partner} onChange={(e) => setPartner(e.target.value)} className="h-8 w-48">
-                <option value="">Choose a partner…</option>
-                {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </Select>
-              <Button size="sm" variant="outline" disabled={pending || !partner} onClick={() => giveToPartner(false)}>Assign to partner</Button>
-              <Button size="sm" variant="ghost" disabled={pending} onClick={() => giveToPartner(true)}>Take back</Button>
+              <Button size="sm" variant="outline" disabled={pending || !owner} onClick={giveToPerson}>Give to</Button>
             </>
           )}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { PageHeader, Card, CardContent, CardHeader, CardTitle, StatTile, Input, Select, Button, Forbidden } from "@/components/ui";
 import { formatNumber } from "@/lib/utils";
@@ -16,8 +16,8 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   if (!canRead) return <Forbidden what="prospects" />;
   const canWrite = can(me, PERMISSIONS.PROSPECT_WRITE);
   const isPartner = Boolean(me.partnerId);
-  // Handing prospects to someone: a partner's portal admin, or staff.
-  const canGive = canWrite && (!isPartner || me.portalRole === "ADMIN");
+  // Handing prospects to a person: a partner's portal admin, to their own logins.
+  const canGive = canWrite && isPartner && me.portalRole === "ADMIN";
 
   const params = await searchParams;
   const page = Math.max(0, Number(params.page ?? 0) || 0);
@@ -54,8 +54,13 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
       >
         <Button asChild variant="outline"><Link href="/prospects/datasets">Datasets</Link></Button>
         {canWrite && (
-          <Button asChild>
+          <Button asChild variant="outline">
             <Link href="/prospects/import"><Upload className="h-4 w-4" /> Import</Link>
+          </Button>
+        )}
+        {canWrite && (
+          <Button asChild>
+            <Link href="/prospects/new"><Plus className="h-4 w-4" /> New prospect</Link>
           </Button>
         )}
       </PageHeader>

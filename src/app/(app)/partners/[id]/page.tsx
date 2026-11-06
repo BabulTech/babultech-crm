@@ -26,6 +26,8 @@ import {
 } from "@/components/ui";
 import { formatMoney, formatDate, formatPercent, humanize, serialize, formatMoneyTotal } from "@/lib/utils";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
+import { getGiveFilterOptions, getPartnerProspects } from "@/server/prospects";
+import { PartnerProspectsPanel } from "./partner-prospects-panel";
 
 export default async function PartnerDetailPage({
   params,
@@ -49,6 +51,9 @@ export default async function PartnerDetailPage({
     getAuditTrail("Partner", id, 15),
   ]);
   if (!partner) notFound();
+  // Giving prospects to a partner, and taking them back: Super Admin and CRM Admin.
+  const manageProspects = can(_me, PERMISSIONS.ADMIN);
+  const [prospects, giveOptions] = manageProspects ? await Promise.all([getPartnerProspects(id), getGiveFilterOptions()]) : [null, null];
 
   const bank = (partner.bankDetails ?? {}) as Record<string, string | undefined>;
   const agreementExpired =
@@ -298,6 +303,10 @@ export default async function PartnerDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {prospects && giveOptions && (
+        <PartnerProspectsPanel partnerId={id} partnerName={String(partner.displayName)} active={partner.status === "ACTIVE"} summary={prospects} options={giveOptions} />
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>

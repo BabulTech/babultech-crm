@@ -576,7 +576,7 @@ export async function setProspectOwners(ids: string[], userId: string | null): P
  * Staff only: give prospects to a partner, or (partnerId null) take them back.
  * Taking one back ends the partner's access to it and everything logged on it.
  */
-export async function assignProspectsToPartner(ids: string[], partnerId: string | null): Promise<ActionResult<{ changed: number }>> {
+export async function assignProspectsToPartner(ids: string[], partnerId: string | null, fromPartnerId?: string): Promise<ActionResult<{ changed: number }>> {
   const auth = await authorize(PERMISSIONS.ADMIN);
   if (!auth.ok) return auth;
   if (auth.user.partnerId) return { ok: false, error: "Not available in the portal." };
@@ -592,9 +592,14 @@ export async function assignProspectsToPartner(ids: string[], partnerId: string 
   const now = new Date().toISOString();
   // Given: nobody on their side owns it yet, so their portal admin hands it out.
   // Taken back: it returns to whoever took it.
-  const { data, error } = await admin.from("prospect")
+  // Only prospects no partner holds can be given, so one never moves from one
+  // partner to another; taking back touches only the named partner's.
+  if (!partnerId && !fromPartnerId) return { ok: false, error: "Say which partner to take them back from." };
+  let q = admin.from("prospect")
     .update({ partnerId, ownerUserId: partnerId ? null : auth.user.id, updatedAt: now })
-    .in("id", ids.slice(0, 1000)).is("deletedAt", null).select("id, businessName");
+    .in("id", ids.slice(0, 1000)).is("deletedAt", null);
+  q = partnerId ? q.is("partnerId", null) : q.eq("partnerId", fromPartnerId!);
+  const { data, error } = await q.select("id, businessName");
   if (error) return { ok: false, error: error.message };
   const rows = (data ?? []) as { id: string; businessName: string }[];
   if (rows.length) {
@@ -614,4 +619,150 @@ export async function listPartnerChoices(): Promise<{ id: string; name: string }
   if (me.partnerId || !can(me, PERMISSIONS.ADMIN)) return [];
   const { data } = await supabaseAdmin().from("partner").select("id, displayName").eq("status", "ACTIVE").is("deletedAt", null).order("displayName");
   return (data ?? []).map((p) => ({ id: p.id as string, name: p.displayName as string }));
+}
+
+// ---------------------------------------------------------------------------
+// A partner's prospects, from the partner's page (Super Admin and CRM Admin)
+// ---------------------------------------------------------------------------
+
+export interface PartnerProspectRow { id: string; businessName: string; status: string; owner: string | null; region: string | null; dataset: string | null; updatedAt: string }
+
+async function requireAdmin() {
+  const me = await requireUser();
+  if (me.partnerId || !can(me, PERMISSIONS.ADMIN)) throw new Error("Only an administrator can manage a partner's prospects.");
+  return me;
+}
+
+const partnerProspectRows = (data: Record<string, unknown>[] | null): PartnerProspectRow[] =>
+  (data ?? []).map((r) => {
+    const one = <T,>(v: T | T[] | null) => (Array.isArray(v) ? v[0] ?? null : v);
+    return {
+      id: String(r.id), businessName: String(r.businessName), status: String(r.status), region: (r.region as string) ?? null,
+      owner: (one(r.owner as never) as { fullName?: string } | null)?.fullName ?? null,
+      dataset: (one(r.dataset as never) as { name?: string } | null)?.name ?? null,
+      updatedAt: String(r.updatedAt),
+    };
+  });
+
+/** What one partner holds: counts, and the most recent of their prospects. */
+export async function getPartnerProspects(partnerId: string) {
+  await requireAdmin();
+  const admin = supabaseAdmin();
+  const count = (status?: string) => {
+    let q = admin.from("prospect").select("id", { count: "exact", head: true }).eq("partnerId", partnerId).is("deletedAt", null);
+    if (status) q = q.eq("status", status);
+    return q;
+  };
+  const [all, active, qualified, list] = await Promise.all([
+    count(), count("ACTIVE"), count("QUALIFIED"),
+    admin.from("prospect").select("id, businessName, status, region, updatedAt, owner:app_user!prospect_ownerUserId_fkey ( fullName ), dataset:prospect_dataset ( name )")
+      .eq("partnerId", partnerId).is("deletedAt", null).order("updatedAt", { ascending: false }).limit(200),
+  ]);
+  return { total: all.count ?? 0, active: active.count ?? 0, qualified: qualified.count ?? 0, rows: partnerProspectRows(list.data as never) };
+}
+
+/** Prospects no partner holds, for Give prospects. Being worked, newest first. */
+export async function findProspectsToGive(filters: { search?: string; datasetId?: string; region?: string }) {
+  await requireAdmin();
+  let q = supabaseAdmin().from("prospect")
+    .select("id, businessName, status, region, updatedAt, owner:app_user!prospect_ownerUserId_fkey ( fullName ), dataset:prospect_dataset ( name )")
+    .is("partnerId", null).is("deletedAt", null).eq("status", "ACTIVE");
+  const search = filters.search?.trim();
+  if (search) q = q.ilike("businessName", `%${search.replace(/[%_]/g, "")}%`);
+  if (filters.datasetId) q = q.eq("datasetId", filters.datasetId);
+  if (filters.region) q = q.eq("region", filters.region);
+  const { data } = await q.order("businessName").limit(100);
+  return partnerProspectRows(data as never);
+}
+
+/** Datasets and regions, for the Give prospects search. */
+export async function getGiveFilterOptions() {
+  await requireAdmin();
+  const admin = supabaseAdmin();
+  const [datasets, values] = await Promise.all([
+    admin.from("prospect_dataset").select("id, name").is("deletedAt", null).is("partnerId", null).order("name"),
+    admin.rpc("prospect_filter_values"),
+  ]);
+  return {
+    datasets: (datasets.data ?? []) as { id: string; name: string }[],
+    regions: ((values.data as { regions?: string[] } | null)?.regions ?? []),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Adding one prospect by hand
+// ---------------------------------------------------------------------------
+
+const newProspectSchema = z.object({
+  businessName: z.string().trim().min(1, "Business name is required.").max(300),
+  website: optional(500),
+  industry: optional(150),
+  city: optional(120),
+  region: optional(150),
+  country: optional(100),
+  datasetId: z.string().uuid().optional().nullable().or(z.literal("").transform(() => null)),
+  phones: z.array(z.string().trim().max(60)).default([]),
+  emails: z.array(z.string().trim().max(320)).default([]),
+  person: z.object({
+    name: z.string().trim().max(200).default(""),
+    role: optional(120),
+    email: z.string().trim().email("Contact person's email: enter a valid address.").max(320).optional().nullable().or(z.literal("").transform(() => null)),
+    phone: optional(60),
+  }).optional(),
+});
+
+/**
+ * One prospect, typed in. Checked for duplicates the way an import is: staff
+ * are shown the prospect that is already there; a partner is told only that
+ * it is already in our records.
+ */
+export async function createProspect(input: z.input<typeof newProspectSchema>): Promise<ActionResult<{ id: string }> & { existingId?: string }> {
+  const auth = await authorize(PERMISSIONS.PROSPECT_WRITE);
+  if (!auth.ok) return auth;
+  const parsed = newProspectSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: describeInvalid(parsed.error), fieldErrors: parsed.error.flatten().fieldErrors };
+  const d = parsed.data;
+  const partnerId = auth.user.partnerId ?? null;
+
+  const phones = [...new Map(d.phones.map((p): [string, string] => [normalizePhone(p) ?? "", p]).filter(([n]) => n.length >= 6)).entries()];
+  const emails = [...new Map(d.emails.map((e): [string, string] => [normalizeEmail(e) ?? "", e]).filter(([n]) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(n))).entries()];
+  const bad = d.emails.filter((e) => e && !emails.some(([, raw]) => raw === e));
+  if (bad.length) return { ok: false, error: `Not an email address: ${bad.join(", ")}` };
+  const nameNorm = normalizeName(d.businessName);
+  const websiteNorm = normalizeWebsite(d.website);
+
+  const { data: conflicts } = await supabaseAdmin().rpc("prospect_partner_conflicts", {
+    p_websites: websiteNorm ? [websiteNorm] : [], p_names: nameNorm ? [nameNorm] : [],
+    p_phones: phones.map(([n]) => n), p_emails: emails.map(([n]) => n),
+  });
+  const matches = (conflicts ?? []) as { prospectId: string | null; partnerId: string | null }[];
+  if (partnerId) {
+    if (matches.length) return { ok: false, error: "This business is already in our records, so it cannot be added again. Your partner manager can tell you more." };
+  } else {
+    const existing = matches.find((m) => m.prospectId);
+    if (existing) return { ok: false, error: "This business is already a prospect.", existingId: existing.prospectId! };
+  }
+
+  if (d.datasetId && partnerId) {
+    const { data: own } = await (await supabaseServer()).from("prospect_dataset").select("id").eq("id", d.datasetId).maybeSingle();
+    if (!own) return { ok: false, error: "Dataset: choose one of your own." };
+  }
+
+  const db = await supabaseServer();
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const { error } = await db.from("prospect").insert({
+    id, businessName: d.businessName, nameNorm, website: d.website, websiteNorm,
+    industry: d.industry, city: d.city, region: d.region, country: d.country, datasetId: d.datasetId ?? null,
+    source: "Added by hand", tags: [], customFields: {}, status: "ACTIVE",
+    createdById: auth.user.id, ownerUserId: auth.user.id, partnerId, updatedAt: now,
+  });
+  if (error) return { ok: false, error: `Could not save the prospect: ${error.message}` };
+  if (phones.length) await db.from("prospect_phone").insert(phones.map(([n, raw], i) => ({ prospectId: id, phone: raw, phoneNorm: n, isPrimary: i === 0 })));
+  if (emails.length) await db.from("prospect_email").insert(emails.map(([n, raw], i) => ({ prospectId: id, email: raw, emailNorm: n, isPrimary: i === 0 })));
+  if (d.person?.name) {
+    await db.from("prospect_person").insert({ prospectId: id, name: d.person.name, role: d.person.role, email: d.person.email, phone: d.person.phone, isPrimary: true });
+  }
+  revalidatePath("/prospects");
+  return { ok: true, data: { id } };
 }

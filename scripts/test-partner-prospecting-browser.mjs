@@ -68,7 +68,7 @@ try {
       partnerId: ids.partner, contactId: key === "admin" ? ids.person : null, status: "ACTIVE", updatedAt: now(),
     }), `Login ${key}`);
   }
-  const prospect = (id, name, extra) => ({ id, businessName: name, nameNorm: name.toLowerCase(), status: "ACTIVE", updatedAt: now(), createdById: staff.id, ...extra });
+  const prospect = (id, name, extra) => ({ id, businessName: name, nameNorm: name.toLowerCase().replace(/[^a-z0-9]/g, ""), status: "ACTIVE", updatedAt: now(), createdById: staff.id, ...extra });
   await must(db.from("prospect").insert([
     prospect(ids.given, `QA Given Traders ${run}`, { partnerId: ids.partner, ownerUserId: null }),
     prospect(ids.theirs, `QA User Owned ${run}`, { partnerId: ids.partner, ownerUserId: ids.user }),
@@ -141,6 +141,80 @@ try {
   assert.equal(q.status, "QUALIFIED");
   pass("Qualifying makes it the partner's registered lead and opens it in the portal");
 
+  console.log("\n03  New prospect, by a partner");
+  await page.goto(`${base}/prospects/new`, { waitUntil: "networkidle" });
+  await page.getByLabel("Business name").fill(`QA Typed In ${run}`);
+  await page.getByLabel("Email addresses").fill(`qpp-typed-${tag}@example.com`);
+  await page.getByLabel("Contact name").fill("Sara Typed");
+  await page.getByRole("button", { name: "Add prospect" }).click();
+  await page.waitForURL((u) => /\/prospects\/[0-9a-f-]{36}$/.test(u.pathname), { timeout: 60000, waitUntil: "commit" });
+  const typed = await must(db.from("prospect").select("id, partnerId, ownerUserId").eq("businessName", `QA Typed In ${run}`).single(), "Read the typed prospect");
+  assert.equal(typed.partnerId, ids.partner); assert.equal(typed.ownerUserId, ids.admin);
+  pass("A partner adds a prospect by hand; it is theirs and opens");
+  await page.goto(`${base}/prospects/new`, { waitUntil: "networkidle" });
+  await page.getByLabel("Business name").fill(`QA Ours Only ${run}`);
+  await page.getByRole("button", { name: "Add prospect" }).click();
+  await page.getByText("already in our records").waitFor({ timeout: 30000 });
+  assert.equal(await page.getByRole("link", { name: "Open it" }).count(), 0, "No link to ours");
+  pass("Adding one of ours is refused without saying whose");
+
+  await page.goto(`${base}/prospects`, { waitUntil: "networkidle" });
+  await page.getByLabel(`Select QA Typed In ${run}`).check();
+  assert.ok(await page.getByRole("button", { name: "Give to" }).isDisabled(), "Give to waits for a person");
+  pass("Give to stays disabled until a person is chosen");
+
+  console.log("\n04  Staff: the partner's page, and New prospect");
+  const crm = await must(db.from("security_role").select("id").eq("name", "CRM Admin").single(), "CRM Admin role");
+  const staffEmail = `qpp-staff-${tag}@example.com`, staffPassword = randomBytes(24).toString("base64url");
+  const sa = await db.auth.admin.createUser({ email: staffEmail, password: staffPassword, email_confirm: true });
+  if (sa.error) throw new Error(sa.error.message);
+  ids.staff = sa.data.user.id;
+  await must(db.from("app_user").insert({ id: ids.staff, fullName: `QA Staff ${run}`, email: staffEmail, roleId: crm.id, userType: "INTERNAL", status: "ACTIVE", updatedAt: now() }), "Staff login");
+  const staffPage = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
+  staffPage.on("dialog", (d) => d.accept());
+  await staffPage.goto(`${base}/login`);
+  await staffPage.locator('input[name="email"]').fill(staffEmail);
+  await staffPage.locator('input[name="password"]').fill(staffPassword);
+  await staffPage.locator('button[type="submit"]').click();
+  await staffPage.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 60000, waitUntil: "commit" });
+
+  await staffPage.goto(`${base}/prospects?search=${encodeURIComponent(`QA Ours Only ${run}`)}`, { waitUntil: "networkidle" });
+  await staffPage.getByLabel(`Select QA Ours Only ${run}`).check();
+  for (const name of ["Assign to partner", "Take back", "Give to"]) assert.equal(await staffPage.getByRole("button", { name }).count(), 0, `No ${name} on Prospects`);
+  pass("Selecting prospects on Prospects shows no partner or hand-over controls");
+
+  await staffPage.goto(`${base}/partners/${ids.partner}`, { waitUntil: "networkidle" });
+  const panel = staffPage.getByTestId("partner-prospects");
+  await panel.getByRole("button", { name: "Give prospects" }).click();
+  await panel.getByLabel("Business name").fill(`QA Ours Only ${run}`);
+  await panel.getByRole("button", { name: "Search" }).click();
+  await panel.getByLabel(`Give QA Ours Only ${run}`).check();
+  await panel.getByRole("button", { name: /^Give 1 to/ }).click();
+  let given = null;
+  for (let i = 0; i < 40 && !given; i++) { await staffPage.waitForTimeout(500); given = (await db.from("prospect").select("partnerId").eq("id", ids.ours).single()).data.partnerId; }
+  assert.equal(given, ids.partner);
+  pass("Give prospects on the partner's page gives the chosen one");
+
+  await staffPage.goto(`${base}/partners/${ids.partner}`, { waitUntil: "networkidle" });
+  await staffPage.getByTestId("partner-prospects").getByLabel(`Take back QA Ours Only ${run}`).check();
+  await staffPage.getByTestId("partner-prospects").getByRole("button", { name: /^Take back 1/ }).click();
+  let back = "x";
+  for (let i = 0; i < 40 && back; i++) { await staffPage.waitForTimeout(500); back = (await db.from("prospect").select("partnerId").eq("id", ids.ours).single()).data.partnerId; }
+  assert.equal(back, null);
+  pass("Take back on the partner's page returns it");
+
+  await staffPage.goto(`${base}/prospects/new`, { waitUntil: "networkidle" });
+  await staffPage.getByLabel("Business name").fill(`QA Ours Only ${run}`);
+  await staffPage.getByRole("button", { name: "Add prospect" }).click();
+  await staffPage.getByRole("link", { name: "Open it" }).waitFor({ timeout: 30000 });
+  pass("Staff adding a duplicate are told it is already a prospect, with a link to it");
+  await staffPage.getByLabel("Business name").fill(`QA Staff Typed ${run}`);
+  await staffPage.getByRole("button", { name: "Add prospect" }).click();
+  await staffPage.waitForURL((u) => /\/prospects\/[0-9a-f-]{36}$/.test(u.pathname), { timeout: 60000, waitUntil: "commit" });
+  const st = await must(db.from("prospect").select("partnerId").eq("businessName", `QA Staff Typed ${run}`).single(), "Read staff prospect");
+  assert.equal(st.partnerId, null);
+  pass("Staff add a prospect by hand; it is ours");
+
   console.log("\nAll checks passed.");
 } catch (err) {
   console.error(`\nFAILED: ${err.message}`);
@@ -152,8 +226,15 @@ try {
   for (const t of ["prospect_activity", "prospect_email", "prospect_phone", "prospect_person", "prospect_task", "prospect_campaign_entry"]) await quiet(db.from(t).delete().in("prospectId", prospects));
   await quiet(db.from("prospect").delete().in("id", prospects));
   await quiet(db.from("prospect").delete().like("businessName", `QA Steal ${run}`));
+  for (const n of [`QA Typed In ${run}`, `QA Staff Typed ${run}`]) {
+    const { data: made } = await db.from("prospect").select("id").eq("businessName", n);
+    for (const m of made ?? []) {
+      for (const t of ["prospect_email", "prospect_person", "prospect_phone", "prospect_activity"]) await quiet(db.from(t).delete().eq("prospectId", m.id));
+      await quiet(db.from("prospect").delete().eq("id", m.id));
+    }
+  }
   if (ids.lead) { await quiet(db.from("note").delete().eq("relatedEntityId", ids.lead)); await quiet(db.from("lead").delete().eq("id", ids.lead)); }
-  for (const key of ["admin", "user"]) if (ids[key]) { await quiet(db.from("app_user").delete().eq("id", ids[key])); await db.auth.admin.deleteUser(ids[key]).catch(() => {}); }
+  for (const key of ["admin", "user", "staff"]) if (ids[key]) { await quiet(db.from("app_user").delete().eq("id", ids[key])); await db.auth.admin.deleteUser(ids[key]).catch(() => {}); }
   await quiet(db.from("partner").delete().eq("id", ids.partner));
   await quiet(db.from("contact").delete().eq("id", ids.person));
   await quiet(db.from("account").delete().eq("id", ids.account));
