@@ -9,6 +9,7 @@ import {
   Receipt, Package, CalendarCheck, Menu, X, LogOut, Clock, UsersRound, Banknote,
   ShieldCheck, UserCog, Settings, BookOpen, CheckSquare, FileInput, Wallet, Stamp,
   ChevronDown, Trash2, BookMarked, PanelLeftClose, PanelLeftOpen, KeyRound, CalendarClock, HeartPulse, CalendarSync, RefreshCw, ContactRound, ListChecks, IdCard, ScrollText,
+  Mail,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { holdsAny } from "@/lib/nav-permissions";
@@ -70,6 +71,7 @@ const NAV: NavGroup[] = [
       { href: "/users", label: "Users", icon: ShieldCheck, adminOnly: true },
       { href: "/jobs", label: "Background jobs", icon: RefreshCw, adminOnly: true },
       { href: "/email/senders", label: "Sender addresses", icon: Megaphone, adminOnly: true },
+      { href: "/email/received", label: "Received emails", icon: Mail, adminOnly: true },
       { href: "/settings", label: "Settings", icon: Settings, adminOnly: true },
     ],
   },

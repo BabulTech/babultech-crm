@@ -9,6 +9,7 @@
 export const NOTIFICATION_KINDS = [
   { kind: "ASSIGNED", label: "Assigned to me", description: "A lead, account, deal, case, project or task is given to you.", emailByDefault: true },
   { kind: "APPROVAL_REQUESTED", label: "Approval needed", description: "A quote, expense or other request is waiting for your approval.", emailByDefault: true },
+  { kind: "EMAIL_REPLY", label: "Replies to my emails", description: "Someone replies to an email you sent from the CRM, or to one on a record you own.", emailByDefault: true },
   { kind: "APPROVAL_DECIDED", label: "Approval decided", description: "Something you asked to have approved was approved or rejected.", emailByDefault: true },
   { kind: "MENTION", label: "Mentioned in a note", description: "Someone @mentions you. The email for this is sent by the note itself.", emailByDefault: false, emailFixed: true },
   { kind: "CASE_CUSTOMER_REPLY", label: "Customer replied", description: "A customer writes on a case you own or follow.", emailByDefault: false },

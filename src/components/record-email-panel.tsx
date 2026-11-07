@@ -210,18 +210,25 @@ export function EmailPanel({ context, emails }: { context: Context | null; email
       <CardContent className="space-y-3">
         {context && open && <Composer c={context} onClose={() => setOpen(false)} />}
         {emails.length === 0 ? (
-          !open && <p className="text-sm text-muted-foreground">No emails sent from here yet.</p>
+          !open && <p className="text-sm text-muted-foreground">No emails sent from here yet. Replies will show here too.</p>
         ) : (
           <ul className="divide-y text-sm">
             {emails.map((e) => (
               <li key={e.id} className="py-2">
                 <p className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{e.subject}</span>
-                  {e.status !== "SENT" && <Badge tone={e.status === "FAILED" ? "danger" : "neutral"}>{e.status === "FAILED" ? "Not sent" : e.status.toLowerCase()}</Badge>}
+                  {e.inbound && <Badge tone="info">Reply</Badge>}
+                  {e.status !== "SENT" && !e.inbound && <Badge tone={e.status === "FAILED" ? "danger" : "neutral"}>{e.status === "FAILED" ? "Not sent" : e.status.toLowerCase()}</Badge>}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  To {e.to.join(", ")}{e.cc.length ? `, cc ${e.cc.join(", ")}` : ""} · {e.sender ?? e.from} · {formatDateTime(e.at)}
+                  {e.inbound ? <>From {e.from} · {formatDateTime(e.at)}</> : <>To {e.to.join(", ")}{e.cc.length ? `, cc ${e.cc.join(", ")}` : ""} · {e.sender ?? e.from} · {formatDateTime(e.at)}</>}
                 </p>
+                {e.inbound && e.body && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-xs text-primary">Read the reply</summary>
+                    <p className="mt-1 whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-sm">{e.body}</p>
+                  </details>
+                )}
                 {e.attachments.length > 0 && <p className="text-xs text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" />{e.attachments.map((a) => a.fileName).join(", ")}</p>}
               </li>
             ))}

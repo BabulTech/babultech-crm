@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { fileReceivedEmail, webhookSecret } from "@/lib/email-replies";
 
 /**
  * What the mail provider tells us happened to a campaign email.
@@ -50,7 +51,7 @@ const EVENT_COLUMN: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  const secret = await webhookSecret();
   if (!secret) {
     return NextResponse.json({ error: "Webhooks are not configured." }, { status: 503 });
   }
@@ -69,6 +70,17 @@ export async function POST(request: Request) {
     event = JSON.parse(body);
   } catch {
     return NextResponse.json({ error: "Not JSON." }, { status: 400 });
+  }
+
+  // A reply to one of our emails: filed on its record, its sender told.
+  if (event.type === "email.received" && event.data?.email_id) {
+    try {
+      await fileReceivedEmail(event.data.email_id);
+    } catch (err) {
+      // A 500 makes Resend retry, which is right when the read failed.
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Could not file it." }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
   }
 
   const column = EVENT_COLUMN[event.type ?? ""];

@@ -450,12 +450,13 @@ export async function listRecordEmails(entityType: string, entityId: string) {
   const me = await requireUser();
   if (!(await loadRecord(entityType, entityId, me))) return [];
   const { data } = await supabaseAdmin().from("email")
-    .select("id, subject, \"fromAddress\", \"toAddresses\", \"ccAddresses\", status, \"sentReceivedAt\", \"bodyText\", sender:app_user!email_sentById_fkey ( \"fullName\" ), attachments:email_attachment ( \"fileName\", \"documentId\" )")
-    .eq("relatedEntityType", entityType).eq("relatedEntityId", entityId).eq("direction", "OUTBOUND")
+    .select("id, direction, subject, \"fromAddress\", \"toAddresses\", \"ccAddresses\", status, \"sentReceivedAt\", \"bodyText\", sender:app_user!email_sentById_fkey ( \"fullName\" ), attachments:email_attachment ( \"fileName\", \"documentId\" )")
+    .eq("relatedEntityType", entityType).eq("relatedEntityId", entityId)
     .order("sentReceivedAt", { ascending: false }).limit(50);
   return (data ?? []).map((e) => ({
     id: e.id as string, subject: e.subject as string, from: e.fromAddress as string, to: (e.toAddresses as string[]) ?? [], cc: (e.ccAddresses as string[] | null) ?? [],
     status: e.status as string, at: e.sentReceivedAt as string, preview: String(e.bodyText ?? "").slice(0, 300),
+    inbound: e.direction === "INBOUND", body: e.direction === "INBOUND" ? String(e.bodyText ?? "").slice(0, 20_000) : null,
     sender: (one(e.sender) as { fullName?: string } | null)?.fullName ?? null,
     attachments: ((e.attachments ?? []) as { fileName: string; documentId: string | null }[]),
   }));
