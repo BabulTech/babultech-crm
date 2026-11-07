@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { fileReceivedEmail, webhookSecret } from "@/lib/email-replies";
+import { fileReceivedEmail, webhookSecrets } from "@/lib/email-replies";
 
 /**
  * What the mail provider tells us happened to a campaign email.
@@ -51,8 +51,8 @@ const EVENT_COLUMN: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const secret = await webhookSecret();
-  if (!secret) {
+  const secrets = await webhookSecrets();
+  if (!secrets.length) {
     return NextResponse.json({ error: "Webhooks are not configured." }, { status: 503 });
   }
 
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   const timestamp = request.headers.get("svix-timestamp");
   const signature = request.headers.get("svix-signature");
 
-  if (!id || !timestamp || !signature || !verify(secret, id, timestamp, body, signature)) {
+  if (!id || !timestamp || !signature || !secrets.some((secret) => verify(secret, id, timestamp, body, signature))) {
     return NextResponse.json({ error: "Bad signature." }, { status: 401 });
   }
 

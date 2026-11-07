@@ -109,9 +109,12 @@ const recordPath = (type: string, id: string) =>
   ({ Prospect: `/prospects/${id}`, Lead: `/leads/${id}`, Contact: `/contacts/${id}`, Account: `/accounts/${id}`, Opportunity: `/opportunities/${id}`,
      Quotation: `/quotations/${id}`, Invoice: `/invoices/${id}`, Project: `/projects/${id}`, Case: `/cases/${id}`, CampaignMember: `/campaign-members/${id}` } as Record<string, string>)[type] ?? "/email/received";
 
-/** The webhook's signing secret: the hosting setting if there is one, else the one stored at setup. */
-export async function webhookSecret(): Promise<string | null> {
-  if (process.env.RESEND_WEBHOOK_SECRET) return process.env.RESEND_WEBHOOK_SECRET;
+/**
+ * The webhooks' signing secrets: the one stored at setup, and the hosting
+ * setting if there is one. Each webhook in Resend has its own, so a request
+ * signed by either is genuine.
+ */
+export async function webhookSecrets(): Promise<string[]> {
   const { data } = await supabaseAdmin().from("app_secret").select("value").eq("name", "resend_webhook_secret").maybeSingle();
-  return (data?.value as string | undefined) ?? null;
+  return [data?.value as string | undefined, process.env.RESEND_WEBHOOK_SECRET].filter((s): s is string => Boolean(s));
 }
