@@ -97,13 +97,44 @@ export async function fileReceivedEmail(resendId: string): Promise<{ filed: bool
     await db.from("prospect_activity").insert({ prospectId: entityId, type: "EMAIL_REPLY", channel: "business_email", content: `Subject: ${subject}`.slice(0, 2000), occurredAt: mail.created_at ?? now });
   }
 
+  // A copy goes to the team mailbox, so replies are also read where the team reads mail.
+  // Its reply-to is the customer, so answering it there answers them.
+  const forwarded = await forwardToMailbox(mail, text);
+
   await db.from("activity_event").insert({
     category: "EMAIL", action: "RECEIVED", outcome: "OK",
     summary: `Email from ${from}: ${subject}${entityType ? "" : " (not matched to a record)"}`.slice(0, 500),
-    actorName: from, entityType, entityId, detail: { source: "Reply", from: mail.from, to: mail.to, subject, resendId },
+    actorName: from, entityType, entityId, detail: { source: "Reply", from: mail.from, to: mail.to, subject, resendId, forwardedTo: forwarded },
   });
   return { filed: true, emailId };
 }
+
+/** The mailbox the team reads; replies are copied there. */
+const TEAM_MAILBOX = process.env.EMAIL_FORWARD_TO ?? "contact@babultech.com";
+
+async function forwardToMailbox(mail: Received, text: string): Promise<string | null> {
+  const fromEnv = process.env.EMAIL_FROM ?? "";
+  const address = (fromEnv.match(/<([^>]+)>/)?.[1] ?? fromEnv).trim();
+  if (!address || address.endsWith("resend.dev")) return null;
+  const sender = mail.from.replace(/<[^>]*>/, "").replace(/"/g, "").trim() || addressOf(mail.from);
+  const header = `Reply received in the CRM\nFrom: ${mail.from}\nTo: ${(mail.to ?? []).join(", ")}\n\n`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${sender.slice(0, 60)} via BabulTech CRM <${address}>`,
+        to: [TEAM_MAILBOX], replyTo: mail.from, subject: mail.subject || "(no subject)",
+        text: header + text, ...(mail.html ? { html: `<p style="color:#666;font-size:12px">Reply received in the CRM from ${escapeHtml(mail.from)}</p>${mail.html}` } : {}),
+      }),
+    });
+    return res.ok ? TEAM_MAILBOX : null;
+  } catch {
+    return null;
+  }
+}
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const recordPath = (type: string, id: string) =>
   ({ Prospect: `/prospects/${id}`, Lead: `/leads/${id}`, Contact: `/contacts/${id}`, Account: `/accounts/${id}`, Opportunity: `/opportunities/${id}`,
