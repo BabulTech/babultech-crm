@@ -66,7 +66,8 @@ function Composer({ c, onClose }: { c: Context; onClose: () => void }) {
   const [done, setDone] = useState<string | null>(null);
   const [senderId, setSenderId] = useState(c.defaultSenderId ?? "");
   const sender = c.senders.find((s) => s.id === senderId);
-  const [replyTo, setReplyTo] = useState(c.myEmail);
+  // Replies go where the sender says (so they come back into the CRM), else to the writer.
+  const [replyTo, setReplyTo] = useState(sender?.replyTo || c.myEmail);
   const [to, setTo] = useState<string[]>(c.suggestions[0] && !c.suggestions[0].optedOut ? [c.suggestions[0].email] : []);
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
@@ -129,11 +130,11 @@ function Composer({ c, onClose }: { c: Context; onClose: () => void }) {
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="From" required help="Only approved sender addresses can be used: the mail service sends from your company's verified domain only.">
-          <Select aria-label="From" value={senderId} onChange={(e) => setSenderId(e.target.value)}>
+          <Select aria-label="From" value={senderId} onChange={(e) => { setSenderId(e.target.value); setReplyTo(c.senders.find((s) => s.id === e.target.value)?.replyTo || c.myEmail); }}>
             {c.senders.map((s) => <option key={s.id} value={s.id}>{s.fromName ? `${s.fromName} <${s.fromAddress}>` : s.fromAddress}</option>)}
           </Select>
         </Field>
-        <Field label="Reply-to" help="Where replies go. Your own address unless you change it.">
+        <Field label="Reply-to" help="Where replies go. The sender's reply address, so replies come back into the CRM and to contact@babultech.com.">
           <Input aria-label="Reply-to" type="email" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder={sender?.replyTo ?? c.myEmail} />
         </Field>
       </div>
