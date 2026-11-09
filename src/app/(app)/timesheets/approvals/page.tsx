@@ -31,7 +31,14 @@ export default async function TeamTimesheetsPage({ searchParams }: { searchParam
   const submitted = rows.filter((r) => r.status === "SUBMITTED" || r.status === "APPROVED").length;
   const approved = rows.filter((r) => r.status === "APPROVED").length;
   const waiting = rows.filter((r) => r.status === "SUBMITTED" && r.canDecide).length;
-  const behind = rows.filter((r) => r.logged < r.committed).length;
+  // The week as a whole is due only when it is over: until then, the working days so far (Monday to Friday).
+  const thisWeek = (() => { const t = new Date(`${todayPk}T00:00:00Z`); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); })();
+  const isCurrent = weekStart >= thisWeek;
+  const dayOfWeek = (new Date(`${todayPk}T00:00:00Z`).getUTCDay() + 6) % 7; // 0 = Monday
+  const dueFraction = isCurrent ? Math.min(5, dayOfWeek + 1) / 5 : 1;
+  const behind = rows.filter((r) => r.logged < r.committed * dueFraction).length;
+  const weekLabel = weekStart === thisWeek ? "This week" : weekStart === addDays(thisWeek, -7) ? "Last week" : null;
+  const weekRange = `${formatDate(weekStart)} – ${formatDate(addDays(weekStart, 6))}`;
 
   return (
     <>
@@ -39,16 +46,17 @@ export default async function TeamTimesheetsPage({ searchParams }: { searchParam
         backTo="/timesheets"
         backLabel="My timesheet"
         title="Team timesheets"
-        description={`Week of ${formatDate(weekStart)} to ${formatDate(addDays(weekStart, 6))}. Committed hours come from each person's employment contract, or 40 when they have none.`}
+        description="Active staff only (partners and customers are not listed). Committed hours come from each person's employment contract, or 40 when they have none."
       />
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Hours logged" value={`${formatNumber(logged, 0)} / ${formatNumber(committed, 0)}`} sublabel={committed ? `${Math.round((logged / committed) * 100)}% of commitment` : undefined} />
         <StatTile label="Submitted" value={`${submitted} of ${rows.length}`} />
         <StatTile label="Approved" value={String(approved)} />
         <StatTile label="Waiting for you" value={String(waiting)} />
-        <StatTile label="Behind on hours" value={String(behind)} />
+        <StatTile label="Behind on hours" value={String(behind)} sublabel={dueFraction < 1 ? "against hours due so far" : undefined} />
       </div>
-      <TeamTimesheets weekStart={weekStart} prevWeek={addDays(weekStart, -7)} nextWeek={addDays(weekStart, 7)} isCurrent={weekStart >= addDays(todayPk, -6)} rows={rows} show={show ?? "all"} />
+      <TeamTimesheets weekStart={weekStart} prevWeek={addDays(weekStart, -7)} nextWeek={addDays(weekStart, 7)} thisWeek={thisWeek} isCurrent={isCurrent}
+        weekLabel={weekLabel} weekRange={weekRange} dueFraction={dueFraction} rows={rows} show={show ?? "all"} />
     </>
   );
 }

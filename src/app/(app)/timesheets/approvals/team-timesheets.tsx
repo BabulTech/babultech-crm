@@ -58,7 +58,17 @@ function Row({ r, weekStart }: { r: TeamWeekRow; weekStart: string }) {
           <span className="ml-1 text-xs text-muted-foreground">({pct}%)</span>
         </TD>
         <TD priority="secondary">
-          <span className="text-xs text-muted-foreground">{r.trend.map((t) => t.logged).join(" · ")}</span>
+          <div className="flex items-end gap-2">
+            {r.trend.map((t, i) => (
+              <div key={t.weekStart} className="flex w-10 flex-col items-center" title={`Week of ${formatDate(t.weekStart)}: ${t.logged} of ${r.committed} hours`}>
+                <div className="flex h-8 w-3 items-end rounded-sm bg-muted">
+                  <div className={`w-full rounded-sm ${t.logged >= r.committed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ height: `${Math.min(100, r.committed ? (t.logged / r.committed) * 100 : 0)}%` }} />
+                </div>
+                <span className={`text-xs ${i === 3 ? "font-semibold" : "text-muted-foreground"}`}>{t.logged}h</span>
+                <span className="text-[10px] text-muted-foreground">{formatDate(t.weekStart).replace(/,? \d{4}$/, "")}</span>
+              </div>
+            ))}
+          </div>
         </TD>
         <TD><Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>{r.decidedBy && <p className="text-xs text-muted-foreground">by {r.decidedBy}</p>}</TD>
         <TD>
@@ -100,27 +110,41 @@ function Row({ r, weekStart }: { r: TeamWeekRow; weekStart: string }) {
   );
 }
 
-export function TeamTimesheets({ weekStart, prevWeek, nextWeek, isCurrent, rows, show }: {
-  weekStart: string; prevWeek: string; nextWeek: string; isCurrent: boolean; rows: TeamWeekRow[]; show: string;
+/** Who each filter shows. "Behind" in the current week means behind on the hours due so far. */
+function matchesFilter(r: TeamWeekRow, show: string, dueFraction: number): boolean {
+  return show === "waiting" ? r.status === "SUBMITTED" && r.canDecide
+    : show === "behind" ? r.logged < r.committed * dueFraction
+      : show === "not-submitted" ? r.status === "NOT_SUBMITTED" || r.status === "RETURNED"
+        : true;
+}
+
+export function TeamTimesheets({ weekStart, prevWeek, nextWeek, thisWeek, isCurrent, weekLabel, weekRange, dueFraction, rows, show }: {
+  weekStart: string; prevWeek: string; nextWeek: string; thisWeek: string; isCurrent: boolean; weekLabel: string | null; weekRange: string;
+  dueFraction: number; rows: TeamWeekRow[]; show: string;
 }) {
-  const shown = rows.filter((r) =>
-    show === "waiting" ? r.status === "SUBMITTED" && r.canDecide
-      : show === "behind" ? r.logged < r.committed
-        : show === "not-submitted" ? r.status === "NOT_SUBMITTED" || r.status === "RETURNED"
-          : true);
+  const shown = rows.filter((r) => matchesFilter(r, show, dueFraction));
+  const href = (week: string, s = show) => `/timesheets/approvals?week=${week}&show=${s}`;
   return (
     <Card>
-      <CardContent className="space-y-3 px-0 pt-4">
+      <CardContent className="space-y-4 px-0 pt-4">
+        <div className="flex flex-wrap items-center gap-3 px-4">
+          <Button asChild variant="outline" size="sm"><a href={href(prevWeek)}><ChevronLeft className="mr-1 h-4 w-4" />Previous week</a></Button>
+          <div data-testid="week-banner" className="flex flex-1 flex-col items-center rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-center">
+            {weekLabel && <span className="text-xs font-semibold uppercase tracking-wide text-primary">{weekLabel}</span>}
+            <span className="text-base font-semibold text-foreground sm:text-lg">{weekRange}</span>
+          </div>
+          {!isCurrent && <Button asChild variant="outline" size="sm"><a href={href(thisWeek)}>This week</a></Button>}
+          {!isCurrent && <Button asChild variant="outline" size="sm"><a href={href(nextWeek)}>Next week<ChevronRight className="ml-1 h-4 w-4" /></a></Button>}
+        </div>
         <div className="flex flex-wrap items-center gap-2 px-4">
-          <Button asChild variant="outline" size="icon"><a href={`/timesheets/approvals?week=${prevWeek}&show=${show}`} aria-label="Previous week"><ChevronLeft className="h-4 w-4" /></a></Button>
-          {!isCurrent && <Button asChild variant="outline" size="icon"><a href={`/timesheets/approvals?week=${nextWeek}&show=${show}`} aria-label="Next week"><ChevronRight className="h-4 w-4" /></a></Button>}
-          <span className="mx-2 h-5 border-l" />
+          <span className="text-xs font-medium text-muted-foreground">Show:</span>
           {FILTERS.map(([k, label]) => (
             <Button key={k} asChild size="sm" variant={show === k ? "default" : "outline"}>
-              <a href={`/timesheets/approvals?week=${weekStart}&show=${k}`}>{label}</a>
+              <a href={href(weekStart, k)}>{label} ({rows.filter((r) => matchesFilter(r, k, dueFraction)).length})</a>
             </Button>
           ))}
         </div>
+        {show === "behind" && dueFraction < 1 && <p className="px-4 text-xs text-muted-foreground">This week is not over: "behind" means fewer hours than due by today ({Math.round(dueFraction * 100)}% of the week's commitment).</p>}
         {shown.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">Nobody here for this week.</p> : (
           <Table>
             <THead>
@@ -128,7 +152,7 @@ export function TeamTimesheets({ weekStart, prevWeek, nextWeek, isCurrent, rows,
                 <TH>Person</TH>
                 <TH className="text-right">Committed</TH>
                 <TH className="text-right">Logged</TH>
-                <TH priority="secondary">Last 4 weeks</TH>
+                <TH priority="secondary">Last 4 weeks (hours)</TH>
                 <TH>Status</TH>
                 <TH />
               </TR>
