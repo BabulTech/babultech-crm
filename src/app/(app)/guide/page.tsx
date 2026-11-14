@@ -3,7 +3,7 @@ import {
   UserPlus, Building2, Target, FileText, FileSignature, Package,
   Megaphone, Handshake, LifeBuoy, FolderKanban, Receipt, Banknote,
   Clock, CalendarCheck, ArrowRight, CheckSquare, ShieldCheck, Settings,
-  UsersRound, Coins, FileInput, Wallet, Stamp, type LucideIcon,
+  UsersRound, Coins, FileInput, Wallet, Stamp, Boxes, Laptop, type LucideIcon,
 } from "lucide-react";
 import { requireUser, can, PERMISSIONS, type SessionUser } from "@/lib/authz";
 import { getMyReportingLine } from "@/server/users";
@@ -206,6 +206,19 @@ const REFERENCE: Reference[] = [
     href: "/expenses",
     needs: PERMISSIONS.INVOICE_READ,
     body: "What the business spends. Submitted, then approved by someone else, then settled. An expense on a project can be marked billable and recharged to the customer.",
+  },
+  {
+    icon: Boxes,
+    title: "Inventory",
+    href: "/inventory",
+    needs: [PERMISSIONS.ASSET_READ, PERMISSIONS.ASSET_WRITE],
+    body: "Everything the company owns - laptops, screens, fans, bulbs, software - with who or where has it and the expense that paid for it. Needs attention lists warranties and licences ending, broken items and anything past its useful life.",
+  },
+  {
+    icon: Laptop,
+    title: "My equipment",
+    href: "/inventory/mine",
+    body: "The company items in your care. Confirm each one when you receive it, or report a problem. It appears in the menu under Finance while you hold something.",
   },
   {
     icon: ShieldCheck,
@@ -413,6 +426,87 @@ export default async function GuidePage() {
           </div>
         </GuideSection>
       )}
+
+      <GuideSection
+        title="Company equipment and inventory"
+        summary={
+          can(me, PERMISSIONS.ASSET_WRITE)
+            ? "Adding items with their purchase, giving them out, taking them back, stock and repairs"
+            : "What to do when you are given a laptop, phone or anything else the company owns"
+        }
+      >
+        <div className="space-y-5 text-sm text-muted-foreground">
+          <div className="space-y-2">
+            <h3 className="font-semibold text-foreground">When you are given an item</h3>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>You get a notification, and <Link className="text-primary hover:underline" href="/inventory/mine">My equipment</Link> appears under Finance in the menu.</li>
+              <li>Check the item. If everything is there, press <strong className="text-foreground">I received it</strong>.</li>
+              <li>If something is missing or damaged, press <strong className="text-foreground">Something is wrong</strong> and say what. Whoever gave it to you is told.</li>
+              <li>You see only your own items, never what they cost. When an item is taken back it leaves your list, and the menu entry goes when you hold nothing.</li>
+            </ol>
+          </div>
+
+          {(can(me, PERMISSIONS.ASSET_READ) || can(me, PERMISSIONS.ASSET_WRITE)) && (
+            <>
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">How items are tracked</h3>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong className="text-foreground">One by one</strong> - laptops, screens, phones, printers. Each gets its own tag (BT-0001) and serial number, and goes to one person or place at a time.</li>
+                  <li><strong className="text-foreground">Counted</strong> - bulbs, fans, chairs, keyboards, software licences. One record per place with a number, e.g. &quot;LED bulbs, Main office, 20&quot;. Some can be given out and the rest stay in stock; for a licence, the number is the seats.</li>
+                  <li>The <strong className="text-foreground">Type</strong> dropdown decides which. Add types, categories and places under Inventory → Types and places.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Adding a purchase - the money is recorded once</h3>
+                <p>An asset purchase is an expense. The money is kept in Expenses (or Vendor bills) and the item is linked to it, so reports never count it twice. On <strong className="text-foreground">Add item</strong>, fill in the item, then the Purchase section, which always needs the date, the cost and the details:</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong className="text-foreground">Company paid</strong> - records a new expense in the <em>Asset purchase</em> category for you.</li>
+                  <li><strong className="text-foreground">Someone paid from their pocket</strong> - the same, marked to pay them back.</li>
+                  <li><strong className="text-foreground">Already recorded as an expense</strong> or <strong className="text-foreground">On a supplier bill</strong> - link the existing one. Use this for items on credit terms, or if finance entered the expense first.</li>
+                  <li><strong className="text-foreground">Gift</strong> or <strong className="text-foreground">We already had it</strong> - no money; give an estimated value and say where it came from.</li>
+                </ul>
+                <p>Administrators and finance approvers record the expense already approved. Anyone else gets a draft expense: open it from the item, attach the receipt and submit it for approval as usual. Recording a purchase needs permission to file expenses.</p>
+                <p><strong className="text-foreground">Several items on one receipt</strong> (3 laptops and 20 bulbs): add the laptops with &quot;How many identical items&quot; set to 3, then, from the same expense, use <strong className="text-foreground">Register as assets</strong> for the bulbs. The expense page shows how much of it is registered, and the system refuses to put more against an expense or bill than it was for.</p>
+                <p>Once the expense or bill is approved, an item&apos;s cost is fixed - correct the expense, not the item. If the expense is later rejected or deleted, the item is flagged <em>Purchase record missing</em>.</p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Giving out and taking back</h3>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Open the item and use <strong className="text-foreground">Give it out</strong>: to a person, or to a place such as a room for a ceiling fan. Note the condition and anything handed over with it (charger, bag).</li>
+                  <li>A person must confirm receipt; until then the item shows <em>not yet confirmed</em>. A place needs no confirmation.</li>
+                  <li>When it comes back, press <strong className="text-foreground">Take back</strong> and record its condition. Every hand-over stays in the item&apos;s history.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Stock, repairs and the end of an item&apos;s life</h3>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong className="text-foreground">Bought more</strong> of a counted item: Stock → Bought more, with its purchase (a new expense or a linked one).</li>
+                  <li><strong className="text-foreground">Used up / broken</strong>: Stock → Used up, with a note. Only what is in stock can be removed.</li>
+                  <li><strong className="text-foreground">Repair, retire, lost, disposed</strong>: use &quot;What happened&quot; with a note. Anything other than back in stock takes the item back from whoever has it.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Needs attention - what to replace</h3>
+                <p>The Needs attention tab lists warranties ending within 30 days, licences due for renewal or expired, items needing repair or broken, items past the useful life set on their type, problems reported by holders, and missing purchase records. Values shown are what was paid; nothing is depreciated.</p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Who can do what</h3>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong className="text-foreground">See the inventory</strong> (asset:read) - the full list, costs and history.</li>
+                  <li><strong className="text-foreground">Manage the inventory</strong> (asset:write) - add, edit, give out, take back, stock and status.</li>
+                  <li>Super Admin and CRM Admin have both. Grant them to other roles under Settings → Roles (Finance group).</li>
+                  <li>Everyone else sees only My equipment, and only while they hold something.</li>
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+      </GuideSection>
 
       <GuideSection
         title="Who can see what"

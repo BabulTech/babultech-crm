@@ -100,6 +100,8 @@ export const PERMISSION_CATALOGUE: PermissionGroup[] = [
       { value: "expense:read", label: "See expenses", help: "Read expense claims their data scope allows." },
       { value: "expense:write", label: "File expenses", help: "Create and edit their own expense claims." },
       { value: "expense:approve", label: "Approve expenses", help: "Approve or reject other people's claims, and settle them.", sensitive: true },
+      { value: "asset:read", label: "See the inventory", help: "Open Inventory: everything the company owns, its cost, and who has it. Anyone given an item sees their own under My equipment without this." },
+      { value: "asset:write", label: "Manage the inventory", help: "Add items with their purchase, give them to people or places, take them back, and record repairs, stock and disposals." },
     ],
   },
   {

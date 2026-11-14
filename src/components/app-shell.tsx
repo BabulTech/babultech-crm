@@ -9,7 +9,7 @@ import {
   Receipt, Package, CalendarCheck, Menu, X, LogOut, Clock, UsersRound, Banknote,
   ShieldCheck, UserCog, Settings, BookOpen, CheckSquare, FileInput, Wallet, Stamp,
   ChevronDown, Trash2, BookMarked, PanelLeftClose, PanelLeftOpen, KeyRound, CalendarClock, HeartPulse, CalendarSync, RefreshCw, ContactRound, ListChecks, IdCard, ScrollText,
-  Mail,
+  Mail, Boxes, Laptop,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { holdsAny } from "@/lib/nav-permissions";
@@ -137,6 +137,10 @@ const NAV: NavGroup[] = [
       { href: "/vendor-bills", label: "Vendor Bills", icon: FileInput, permissions: ["invoice:read"] },
       { href: "/expenses", label: "Expenses", icon: Wallet, permissions: ["expense:read"] },
       { href: "/finance/periods", label: "Periods", icon: CalendarClock, permissions: ["invoice:read"] },
+      { href: "/inventory", label: "Inventory", icon: Boxes, permissions: ["asset:read", "asset:write"] },
+      // "asset:mine" is not a role permission: the frame adds it for anyone
+      // currently holding a company item, so they can see their own.
+      { href: "/inventory/mine", label: "My equipment", icon: Laptop, permissions: ["asset:mine"] },
     ],
   },
   {
@@ -272,8 +276,12 @@ export function AppShell({
     [permissions.join(","), isAdmin],
   );
 
+  // A nested destination (My equipment under Inventory) wins over its parent.
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+    href === "/"
+      ? pathname === "/"
+      : pathname.startsWith(href) &&
+        !(href === "/inventory" && pathname.startsWith("/inventory/mine"));
 
   return (
     <div className="flex min-h-screen">

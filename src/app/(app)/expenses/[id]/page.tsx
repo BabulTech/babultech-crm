@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { formatMoney, formatDate, formatDateTime, humanize } from "@/lib/utils";
 import { ExpenseActions } from "./expense-actions";
+import { PurchasePanel } from "../../inventory/purchase-panel";
 
 export default async function ExpenseDetailPage({
   params,
@@ -169,6 +170,14 @@ export default async function ExpenseDetailPage({
 
         <NotesSection entityType="Expense" entityId={id} notes={notes} />
       </div>
+
+      <PurchasePanel
+        kind="expense"
+        id={id}
+        amount={Number(expense.amount ?? 0)}
+        currencyCode={expense.currencyCode}
+        likelyAssets={expense.category?.name?.toLowerCase() === "asset purchase"}
+      />
 
       <div className="mt-6">
         <DocumentsPanel entityType="Expense" entityId={id} documents={documents} />

@@ -9,6 +9,7 @@ import { DatePrefsProvider } from "@/components/date-prefs-provider";
 import { ensureCurrencyContext } from "@/lib/currency-loader";
 import { ViewAsBanner } from "@/components/view-as-banner";
 import { rememberSchedulerAddress } from "@/lib/scheduler-address";
+import { holdsEquipment } from "@/server/inventory";
 
 
 /** The internal app around a page: its menu, guides and providers. */
@@ -16,7 +17,13 @@ export async function InternalFrame({ user, children }: { user: SessionUser; chi
   // The scheduler learns where the live site is from its first visit.
   await rememberSchedulerAddress();
   // The configurable dropdown values, loaded once for every form.
-  const [picklists, currencies] = await Promise.all([getPicklistMap(), ensureCurrencyContext()]);
+  const [picklists, currencies, holdsItems] = await Promise.all([
+    getPicklistMap(),
+    ensureCurrencyContext(),
+    holdsEquipment().catch(() => false),
+  ]);
+  // Anyone holding a company item sees My equipment, whatever their role.
+  const navPermissions = holdsItems ? [...user.permissions, "asset:mine"] : user.permissions;
 
   return (
     <>
@@ -24,7 +31,7 @@ export async function InternalFrame({ user, children }: { user: SessionUser; chi
     <AppShell
       user={{ fullName: user.fullName, email: user.email, roleName: user.roleName }}
       isAdmin={can(user, PERMISSIONS.ADMIN)}
-      permissions={user.permissions}
+      permissions={navPermissions}
     >
       {/* In the layout rather than on each page: eighty pages would each need
           the same import and the same placement, and any one of them could be

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { formatMoney, formatDate, formatNumber, humanize, formatMoneyTotal } from "@/lib/utils";
 import { BillActions } from "./bill-actions";
+import { PurchasePanel } from "../../inventory/purchase-panel";
 
 export default async function VendorBillDetailPage({
   params,
@@ -204,6 +205,8 @@ export default async function VendorBillDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <PurchasePanel kind="bill" id={id} amount={Number(bill.totalAmount ?? 0)} currencyCode={bill.currencyCode} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NotesSection entityType="VendorBill" entityId={id} notes={notes} />

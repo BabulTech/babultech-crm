@@ -459,6 +459,10 @@ export const PERMISSIONS = {
   EXPENSE_READ: "expense:read",
   EXPENSE_WRITE: "expense:write",
   EXPENSE_APPROVE: "expense:approve",
+  // Inventory: everything the company owns and who has it. Anyone holding an
+  // item sees their own under My equipment without either of these.
+  ASSET_READ: "asset:read",
+  ASSET_WRITE: "asset:write",
   // Credential vault. Deliberately its own pair rather than folded into
   // admin:*, because "can configure the system" and "can read our production
   // keys" are different levels of trust and should be grantable separately.
