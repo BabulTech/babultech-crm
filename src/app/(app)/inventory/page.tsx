@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Boxes, Coins, UserCheck, Warehouse, AlertTriangle, Settings2 } from "lucide-react";
+import { Plus, Upload, Boxes, Coins, UserCheck, Warehouse, AlertTriangle, Settings2 } from "lucide-react";
 import { listAssets, getInventorySummary, getInventoryOptions } from "@/server/inventory";
 import { requireUser, can, canAny, PERMISSIONS } from "@/lib/authz";
 import { ListFilters } from "@/components/list-filters";
@@ -50,6 +50,9 @@ export default async function InventoryPage({
           <>
             <Button asChild variant="outline">
               <Link href="/inventory/settings"><Settings2 className="h-4 w-4" /> Types and places</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/inventory/import"><Upload className="h-4 w-4" /> Import from Excel</Link>
             </Button>
             <Button asChild>
               <Link href="/inventory/new"><Plus className="h-4 w-4" /> Add item</Link>

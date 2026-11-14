@@ -39,6 +39,7 @@ export default async function SettingsPage() {
       >
         <Button asChild variant="outline"><Link href="/settings/automation">Approval and automatic rules</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/numbering">Record numbering</Link></Button>
+        <Button asChild variant="outline"><Link href="/inventory/settings">Inventory types and places</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/integrations">Webhooks and integrations</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/email-templates">System emails</Link></Button>
         <Button asChild variant="outline"><Link href="/settings/email-screens">Email on screens</Link></Button>

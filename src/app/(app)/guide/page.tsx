@@ -453,8 +453,20 @@ export default async function GuidePage() {
                 <ul className="list-disc space-y-1 pl-5">
                   <li><strong className="text-foreground">One by one</strong> - laptops, screens, phones, printers. Each gets its own tag (BT-0001) and serial number, and goes to one person or place at a time.</li>
                   <li><strong className="text-foreground">Counted</strong> - bulbs, fans, chairs, keyboards, software licences. One record per place with a number, e.g. &quot;LED bulbs, Main office, 20&quot;. Some can be given out and the rest stay in stock; for a licence, the number is the seats.</li>
-                  <li>The <strong className="text-foreground">Type</strong> dropdown decides which. Add types, categories and places under Inventory → Types and places.</li>
+                  <li>The <strong className="text-foreground">Type</strong> dropdown decides which. If the type you need is missing, press <strong className="text-foreground">+ New type</strong> beside it on the Add item form: give the name, category and how it is tracked, and it is selected for you. Types, categories and places can also be managed under Inventory → Types and places (also linked from Settings).</li>
                 </ul>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Importing what we already own from Excel</h3>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Inventory → <strong className="text-foreground">Import from Excel</strong> → <strong className="text-foreground">Download template</strong>. Its Lists sheet shows today&apos;s types, places and staff emails; the Instructions sheet explains every column.</li>
+                  <li>Fill the Inventory sheet, one row per item or per stock line (30 bulbs in the Store room is one row). Rows starting with &quot;Example:&quot; are ignored.</li>
+                  <li>Required: item name, type, purchase date and cost of each. For older items a best guess is fine; they are recorded as <em>Already had</em> with no expense.</li>
+                  <li>Quantity 4 on a one-by-one type (monitors) creates 4 separate items with their own tags; add serial numbers afterwards, or use one row per serial.</li>
+                  <li>A new type or place in the file is created automatically. <em>Given to (person)</em> must be a staff member&apos;s CRM email or exact name; they are recorded as already having it.</li>
+                  <li>Upload the file. Every row is checked and problems are listed by row number. Nothing is saved until all rows are clean - then press <strong className="text-foreground">Import</strong>.</li>
+                </ol>
               </div>
 
               <div className="space-y-2">

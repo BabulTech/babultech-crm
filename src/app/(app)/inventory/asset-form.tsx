@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Input, Select, Textarea, Alert } from "@/components/ui";
+import { useMemo, useState, useTransition } from "react";
+import { Plus } from "lucide-react";
+import { Input, Select, Textarea, Alert, Button } from "@/components/ui";
+import { createAssetType } from "@/server/inventory";
 import { RecordForm, FormField } from "@/components/record-form";
 import { RecordLookup } from "@/components/record-lookup";
 
@@ -178,6 +180,63 @@ export function PurchaseFields({
   );
 }
 
+/**
+ * "+ New type" beside the Type dropdown. A type needs a category and how it
+ * is tracked, so this is a small panel rather than the one-field add used on
+ * other dropdowns. Plain inputs without names, so the item form does not
+ * submit them.
+ */
+function NewTypePanel({
+  categories,
+  onCreated,
+  onCancel,
+}: {
+  categories: { id: string; name: string; active: boolean }[];
+  onCreated: (type: InventoryFormOptions["types"][number]) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [tracking, setTracking] = useState("INDIVIDUAL");
+  const [life, setLife] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function save() {
+    setError(null);
+    start(async () => {
+      const r = await createAssetType({ name, categoryId, tracking, usefulLifeMonths: life || null });
+      if (!r.ok) { setError(r.error); return; }
+      onCreated({
+        id: r.data.id, name: r.data.name, tracking, active: true,
+        categoryName: categories.find((c) => c.id === categoryId)?.name ?? "",
+      });
+    });
+  }
+
+  return (
+    <div className="mt-2 space-y-3 rounded-md border bg-muted/30 p-3" data-new-type>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input aria-label="New type name" placeholder="Type name, e.g. Projector" value={name} onChange={(e) => setName(e.target.value)} />
+        <Select aria-label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="">Category…</option>
+          {categories.filter((c) => c.active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </Select>
+        <Select aria-label="Tracked" value={tracking} onChange={(e) => setTracking(e.target.value)}>
+          <option value="INDIVIDUAL">One by one (own tag and serial)</option>
+          <option value="QUANTITY">Counted (a number per place)</option>
+        </Select>
+        <Input aria-label="Useful life in months" type="number" min={1} max={600} placeholder="Useful life, months (optional)" value={life} onChange={(e) => setLife(e.target.value)} />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" size="sm" disabled={pending || !name.trim() || !categoryId} onClick={save}>{pending ? "Adding…" : "Add type"}</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 /** The item's own details. */
 function ItemFields({
   options,
@@ -187,6 +246,9 @@ function ItemFields({
   onCount,
   count,
   tracking,
+  typeId,
+  types,
+  onTypeCreated,
 }: {
   options: InventoryFormOptions;
   defaults: AssetDefaults;
@@ -195,30 +257,48 @@ function ItemFields({
   onCount: (n: number) => void;
   count: number;
   tracking: string | null;
+  typeId: string;
+  types: InventoryFormOptions["types"];
+  onTypeCreated: (type: InventoryFormOptions["types"][number]) => void;
 }) {
   const d = defaults;
+  const [addingType, setAddingType] = useState(false);
   const grouped = useMemo(() => {
     const map = new Map<string, InventoryFormOptions["types"]>();
-    for (const t of options.types.filter((t) => t.active || t.id === d.typeId)) {
+    for (const t of types.filter((t) => t.active || t.id === d.typeId)) {
       const list = map.get(t.categoryName) ?? [];
       list.push(t);
       map.set(t.categoryName, list);
     }
     return [...map.entries()];
-  }, [options.types, d.typeId]);
+  }, [types, d.typeId]);
 
   return (
     <div className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <FormField label="Type" name="typeId" required help="What kind of item. Laptops and screens are tracked one by one; bulbs, fans and chairs are counted per place. Add a type under Inventory settings.">
-          <Select name="typeId" required defaultValue={d.typeId ?? ""} onChange={(e) => onType(e.target.value)}>
-            <option value="">Choose a type…</option>
-            {grouped.map(([cat, list]) => (
-              <optgroup key={cat} label={cat}>
-                {list.map((t) => <option key={t.id} value={t.id}>{t.name}{t.tracking === "QUANTITY" ? " (counted)" : ""}</option>)}
-              </optgroup>
-            ))}
-          </Select>
+        <FormField label="Type" name="typeId" required help="What kind of item. Laptops and screens are tracked one by one; bulbs, fans and chairs are counted per place. Not listed? Use + New type.">
+          <div className="flex gap-2">
+            <Select name="typeId" required value={typeId} onChange={(e) => onType(e.target.value)} className="flex-1">
+              <option value="">Choose a type…</option>
+              {grouped.map(([cat, list]) => (
+                <optgroup key={cat} label={cat}>
+                  {list.map((t) => <option key={t.id} value={t.id}>{t.name}{t.tracking === "QUANTITY" ? " (counted)" : ""}</option>)}
+                </optgroup>
+              ))}
+            </Select>
+            {!addingType && (
+              <Button type="button" variant="outline" onClick={() => setAddingType(true)} title="Add a new type" aria-label="Add a new type">
+                <Plus className="h-4 w-4" /> New type
+              </Button>
+            )}
+          </div>
+          {addingType && (
+            <NewTypePanel
+              categories={options.categories}
+              onCancel={() => setAddingType(false)}
+              onCreated={(t) => { onTypeCreated(t); setAddingType(false); }}
+            />
+          )}
         </FormField>
         <FormField label="Name" name="name" required help="How people will recognise it, e.g. 'Dell Latitude 5440' or 'LED bulbs 18W'.">
           <Input name="name" required defaultValue={d.name ?? ""} />
@@ -287,12 +367,17 @@ export function AssetForm({
 }) {
   const d = defaults ?? {};
   const [typeId, setTypeId] = useState(d.typeId ?? "");
+  const [types, setTypes] = useState(options.types);
   const [count, setCount] = useState(1);
-  const tracking = options.types.find((t) => t.id === typeId)?.tracking ?? null;
+  const tracking = types.find((t) => t.id === typeId)?.tracking ?? null;
 
   return (
     <RecordForm action={action} redirectTo={redirectTo} submitLabel={submitLabel}>
-      <ItemFields options={options} defaults={d} editing={editing} onType={setTypeId} onCount={setCount} count={count} tracking={tracking} />
+      <ItemFields
+        options={options} defaults={d} editing={editing} onType={setTypeId} onCount={setCount} count={count} tracking={tracking}
+        typeId={typeId} types={types}
+        onTypeCreated={(t) => { setTypes((list) => [...list.filter((x) => x.id !== t.id), t]); setTypeId(t.id); }}
+      />
       {editing ? (
         <div className="space-y-5 rounded-lg border bg-muted/20 p-4">
           <h3 className="text-sm font-semibold">Purchase</h3>
