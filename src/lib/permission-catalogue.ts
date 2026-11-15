@@ -52,6 +52,7 @@ export const PERMISSION_CATALOGUE: PermissionGroup[] = [
       { value: "opportunity:read", label: "See deals", help: "Open the pipeline and deal pages." },
       { value: "opportunity:write", label: "Work on deals", help: "Create and edit deals, move stages, and price them." },
       { value: "quotation:approve", label: "Approve quotations", help: "Approve a quote so it can be sent to the customer." },
+      { value: "salessetup:manage", label: "Manage offerings, proposal templates and onboarding playbooks", help: "Set up what proposals and customer onboarding are built from. Everyone with deal access can still use them." },
       { value: "contract:write", label: "Work on contracts", help: "Create and edit contracts and their renewal terms." },
     ],
   },

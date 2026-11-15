@@ -36,6 +36,8 @@ export const SEQUENCES = {
   PAYMENT: "Payment",
   EXPENSE: "Expense",
   ASSET: "Asset",
+  ONBOARDING: "Onboarding",
+  PROPOSAL: "Proposal",
   VENDOR_BILL: "VendorBill",
   VENDOR_PAYMENT: "VendorPayment",
   CAMPAIGN: "Campaign",

@@ -9,7 +9,7 @@ import {
   Receipt, Package, CalendarCheck, Menu, X, LogOut, Clock, UsersRound, Banknote,
   ShieldCheck, UserCog, Settings, BookOpen, CheckSquare, FileInput, Wallet, Stamp,
   ChevronDown, Trash2, BookMarked, PanelLeftClose, PanelLeftOpen, KeyRound, CalendarClock, HeartPulse, CalendarSync, RefreshCw, ContactRound, ListChecks, IdCard, ScrollText,
-  Mail, Boxes, Laptop,
+  Mail, Boxes, Laptop, Rocket, Layers,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { holdsAny } from "@/lib/nav-permissions";
@@ -104,6 +104,8 @@ const NAV: NavGroup[] = [
       { href: "/quotations", label: "Quotations", icon: FileText, permissions: ["quotation:read", "quotation:write"] },
       { href: "/contracts", label: "Contracts", icon: FileSignature, permissions: ["contract:read", "contract:write", "opportunity:read"] },
       { href: "/accounts/renewals", label: "Renewals", icon: CalendarSync, permissions: ["contract:read", "contract:write", "opportunity:read"] },
+      { href: "/onboarding", label: "Onboarding", icon: Rocket, permissions: ["opportunity:read", "project:read"] },
+      { href: "/offerings", label: "Offerings & templates", icon: Layers, permissions: ["salessetup:manage"] },
       { href: "/products", label: "Products & Services", icon: Package, permissions: ["opportunity:read"] },
       { href: "/price-books", label: "Price books", icon: BookMarked, permissions: ["opportunity:read"] },
     ],

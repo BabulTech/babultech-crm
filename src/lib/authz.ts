@@ -463,6 +463,9 @@ export const PERMISSIONS = {
   // item sees their own under My equipment without either of these.
   ASSET_READ: "asset:read",
   ASSET_WRITE: "asset:write",
+  // Offerings, proposal templates and onboarding playbooks: what every deal's
+  // proposal and every new customer's onboarding are built from.
+  SALES_SETUP: "salessetup:manage",
   // Credential vault. Deliberately its own pair rather than folded into
   // admin:*, because "can configure the system" and "can read our production
   // keys" are different levels of trust and should be grantable separately.

@@ -427,6 +427,52 @@ export default async function GuidePage() {
         </GuideSection>
       )}
 
+      {(can(me, PERMISSIONS.OPPORTUNITY_READ) || can(me, PERMISSIONS.PROJECT_READ)) && (
+        <GuideSection
+          title="Proposals and customer onboarding"
+          summary="Offerings, writing and sending a proposal, the customer accepting it, and onboarding after the win"
+        >
+          <div className="space-y-5 text-sm text-muted-foreground">
+            <div className="space-y-2">
+              <h3 className="font-semibold text-foreground">Offerings</h3>
+              <p>An offering is the kind of sale: Web development, BabulPOS, Mobile app, Digital marketing. Set it on the deal in the <strong className="text-foreground">Proposal and onboarding</strong> card (The deal tab). It decides which proposal template is suggested and which onboarding playbook starts when the deal is won. Offerings, templates and playbooks are managed under Sales → Offerings &amp; templates (permission: <em>Manage offerings, proposal templates and onboarding playbooks</em>).</p>
+            </div>
+
+            {can(me, PERMISSIONS.OPPORTUNITY_READ) && (
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground">Writing and sending a proposal</h3>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Create the deal&apos;s quotation first - the proposal&apos;s pricing table <em>is</em> the quotation, so prices are never typed twice and discount approval still applies.</li>
+                  <li>On the deal, choose a template and press <strong className="text-foreground">Create proposal</strong>. The customer&apos;s name, contact, deal and your details are filled in.</li>
+                  <li>Edit each section for this customer (their needs, the scope), reorder or remove sections, pick the quotation and the valid-until date, and <strong className="text-foreground">Save</strong>. The preview below shows exactly what the customer will see.</li>
+                  <li><strong className="text-foreground">Send to customer</strong>: tick the contacts, add a message. The quotation is sent with it (approval first if its discounts need it), and the customer gets an email with a link. The link is also shown once for you to copy.</li>
+                  <li>Sending freezes that version. To change it - for example after the customer asks for changes - press <strong className="text-foreground">New version</strong>, edit and send; the old link stops accepting.</li>
+                </ol>
+                <p>You are notified when the customer opens the proposal, accepts it, asks for changes or declines. The proposal page shows every event.</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h3 className="font-semibold text-foreground">What the customer sees</h3>
+              <p>A branded page with the proposal and a <strong className="text-foreground">Download PDF</strong> button. They can <strong className="text-foreground">Accept</strong> (typed name, drawn signature and agreement - the time and device are recorded), <strong className="text-foreground">Request changes</strong> with a comment, or <strong className="text-foreground">Decline</strong>. An expired proposal cannot be accepted. Accepting does not win the deal by itself: the owner accepts the quotation and marks the deal Closed won.</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-semibold text-foreground">Onboarding after the win</h3>
+              <ol className="list-decimal space-y-1 pl-5">
+                <li>Marking a deal <strong className="text-foreground">Closed won</strong> starts onboarding from its offering&apos;s playbook. No offering or playbook? Use <strong className="text-foreground">Start onboarding</strong> on the deal and pick one.</li>
+                <li>Each step has an owner and a due date counted from the win. Owners are notified and see their steps under <strong className="text-foreground">My work</strong>.</li>
+                <li>Open <strong className="text-foreground">Sales → Onboarding</strong> to see every customer, their progress, next step and overdue steps. Tick steps as <strong className="text-foreground">Done</strong>; some need a note, and some wait for the step before them.</li>
+                <li>Steps marked <em>From customer</em> are things we need from them. <strong className="text-foreground">Email &quot;what we need from you&quot;</strong> sends the open ones as one list. While only those remain, the onboarding shows <em>Waiting on customer</em>.</li>
+                <li>The manager can reassign steps, change dates, skip a step with a reason, or cancel onboarding. Service deals also get their delivery <strong className="text-foreground">Project</strong> as before; it is linked from the onboarding.</li>
+                <li>Ticking the <strong className="text-foreground">Go live</strong> step makes the customer Live; follow-up steps stay on the list. The account shows its onboarding status at the top.</li>
+              </ol>
+              <p>Playbooks are edited under Onboarding → Playbooks: steps by phase (Kickoff, Collect from customer, Set up, Train, Go live, Follow-up), who does each, due day, and whether it needs a note or waits for the previous step. Changes apply to onboardings started afterwards.</p>
+            </div>
+          </div>
+        </GuideSection>
+      )}
+
       <GuideSection
         title="Company equipment and inventory"
         summary={

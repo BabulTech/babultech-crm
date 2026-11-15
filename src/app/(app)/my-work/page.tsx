@@ -7,6 +7,7 @@ import {
 } from "@/components/ui";
 import { formatDate, formatDateTime, formatPercent, humanize } from "@/lib/utils";
 import { TaskProgress } from "./task-progress";
+import { MyOnboardingSteps } from "@/components/onboarding-widgets";
 import { listRecent } from "@/server/recent";
 import { listFavorites } from "@/server/favorites";
 
@@ -125,6 +126,8 @@ export default async function MyWorkPage() {
               </Alert>
             </div>
           )}
+
+          <MyOnboardingSteps />
 
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center gap-2">

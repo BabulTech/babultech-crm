@@ -31,6 +31,7 @@ import { OpportunityProductServices } from "@/components/deal-product-services";
 import { getOpportunityPricing } from "@/server/opportunity-lines";
 import { ActivitiesPanel } from "@/components/activities-panel";
 import { listActivitiesFor } from "@/server/activities";
+import { SalesProcessPanel } from "@/components/sales-process-panel";
 
 export default async function OpportunityDetailPage({
   params,
@@ -136,6 +137,13 @@ export default async function OpportunityDetailPage({
             canSeeCommission={canSeeCommission}
             canSetPartner={can(_me, PERMISSIONS.OPPORTUNITY_WRITE)}
             availablePartners={availablePartners}
+          />
+
+          <SalesProcessPanel
+            opportunityId={opp.id}
+            offeringId={(opp as Record<string, any>).offeringId ?? null}
+            stage={opp.stage}
+            canWrite={can(_me, PERMISSIONS.OPPORTUNITY_WRITE)}
           />
 
           {pricing && (

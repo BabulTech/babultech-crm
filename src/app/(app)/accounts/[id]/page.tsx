@@ -18,6 +18,7 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { getAccount } from "@/server/crm";
 import { getAccountRelationship } from "@/server/relationship";
 import { AccountRelationshipSections } from "@/components/relationship-sections";
+import { AccountOnboardingBadge } from "@/components/onboarding-widgets";
 import {
   PageHeader, Card, CardHeader, CardTitle, CardContent, Badge, statusTone,
   Table, THead, TBody, TR, TH, TD, StatTile, Button, Alert, Forbidden
@@ -79,6 +80,8 @@ export default async function AccountDetailPage({
         <RecentMark entityType="Account" entityId={id} label={String(account.name ?? "")} />
         <DeleteControl type="Account" id={id} name={String(account.name ?? "")} />
       </PageHeader>
+
+      <AccountOnboardingBadge accountId={id} />
 
       {account.sourcePartner && (
         <div className="mb-5">

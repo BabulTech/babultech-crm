@@ -13,6 +13,7 @@ import { PERMISSIONS, authorize, requirePermission, scopedContext } from "@/lib/
 import { editGate, markCorrectionSaved } from "./corrections";
 import { auditChanges } from "@/lib/audit";
 import type { ActionResult } from "./partners";
+import { startOnboardingFor } from "./onboarding-start";
 
 /** Default win probability per stage. Users can still override it. */
 const STAGE_PROBABILITY: Record<string, number> = {
@@ -284,6 +285,16 @@ export async function changeStage(
       if (projectErr) projectError = projectErr.message;
       else if (created) project = { id: created.id, projectNumber: created.projectNumber };
       revalidatePath("/projects");
+
+      // Customer onboarding starts from the offering's playbook. Like the
+      // project, a problem here is logged and never undoes the win; the deal
+      // page offers Start onboarding when none was started.
+      try {
+        const started = await startOnboardingFor(data.id, { actor: user });
+        if (!started.ok) console.error("Onboarding not started:", started.error);
+      } catch (err) {
+        console.error("Onboarding not started:", err);
+      }
     }
 
     revalidatePath("/opportunities");
