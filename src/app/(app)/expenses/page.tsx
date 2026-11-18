@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Upload, Clock, Wallet, Receipt, Coins } from "lucide-react";
+import { Plus, Upload, Clock, Wallet, Receipt, Coins, BarChart3 } from "lucide-react";
 import { listExpenses, getExpenseTotals, getExpenseClaimSummary } from "@/server/payables";
 import { requireUser, can, PERMISSIONS } from "@/lib/authz";
 import { ExportButton } from "@/components/export-button";
@@ -57,6 +57,9 @@ export default async function ExpensesPage({
         title="Expenses"
         description="What the business spent, who is owed it, and whether the customer is paying for it."
       >
+        <Button asChild variant="outline">
+          <Link href="/expenses/analytics"><BarChart3 className="h-4 w-4" /> Analytics</Link>
+        </Button>
         <ExportButton entity="expenses" params={{ ...filters, ...periodParams }} />
         {can(me, PERMISSIONS.INVOICE_READ) && (
           <Button asChild variant="outline">

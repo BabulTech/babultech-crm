@@ -425,6 +425,11 @@ export function AppShell({
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        // Not prefetched: forty menu links each rendering their
+                        // page on every page load queued in front of whatever the
+                        // person actually clicked, so a filter change could wait
+                        // close to a minute. A menu click now loads on demand.
+                        prefetch={false}
                         onClick={() => setOpen(false)}
                         // title, so a railed icon still says what it is on hover.
                         title={railed ? item.label : undefined}

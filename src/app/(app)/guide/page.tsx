@@ -419,6 +419,15 @@ export default async function GuidePage() {
               twice. Fix a mistake with a correcting entry rather than by editing history.
             </p>
             <p>
+              <strong className="text-foreground">Analytics.</strong>{" "}
+              Expenses → <strong className="text-foreground">Analytics</strong> shows spending over time as stacked
+              bars, coloured by category or by who paid. Filter by date, category, who paid, approval and payment
+              status, or search; group by day, week or month; tick &quot;Include supplier bills&quot; to add them.
+              Hover a bar for its breakdown, click it to open those expenses, click a legend entry to hide it, and
+              use &quot;Show as a table&quot; for the numbers. Approvers see everyone&apos;s spending; others see their own.
+              Totals are in PKR.
+            </p>
+            <p>
               <strong className="text-foreground">You cannot approve your own claim.</strong>{" "}
               The system refuses it whoever you are, administrators included, so the person who
               spends the money is never the person who signs it off.
