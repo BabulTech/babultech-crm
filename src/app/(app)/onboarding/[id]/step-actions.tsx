@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 
-import { Check, RotateCcw, SkipForward } from "lucide-react";
-import { Button, Alert, Input, Select, Textarea, Field } from "@/components/ui";
-import { completeStep, reopenStep, skipStep, updateStep, updateOnboarding, emailCustomerChecklist } from "@/server/onboarding";
+import { Button, Alert, Input, Select, Textarea, Field, Badge } from "@/components/ui";
+import { STEP_STATUSES, STEP_STATUS_LABELS, STEP_STATUS_TONES, type StepStatus } from "@/lib/onboarding";
+import { setStepStatus, updateStep, updateOnboarding, emailCustomerChecklist } from "@/server/onboarding";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -27,57 +27,66 @@ function useRun() {
 }
 
 export function StepControls({
-  stepId, status, requiresNote, blocked, canTick, canRun, isGoLive, users, ownerUserId, dueDate, onChanged,
+  stepId, status, requiresNote, hasNote, blocked, canChange, canRun, isGoLive, users, ownerUserId, dueDate, onChanged,
 }: {
   onChanged?: () => void;
-  stepId: string; status: string; requiresNote: boolean; blocked: boolean; canTick: boolean; canRun: boolean; isGoLive: boolean;
+  stepId: string; status: string; requiresNote: boolean; hasNote: boolean; blocked: boolean; canChange: boolean; canRun: boolean; isGoLive: boolean;
   users: { id: string; fullName: string }[]; ownerUserId: string | null; dueDate: string | null;
 }) {
   const { pending, error, run: runBase } = useRun();
   const run: typeof runBase = (fn, done) => runBase(fn, () => { done?.(); onChanged?.(); });
-  const [mode, setMode] = useState<null | "done" | "skip" | "edit">(null);
+  const [next, setNext] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [note, setNote] = useState("");
 
-  if (status !== "TODO") {
-    return canRun || canTick ? (
-      <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => reopenStep(stepId))}><RotateCcw className="h-3.5 w-3.5" /> Reopen</Button>
-    ) : null;
-  }
+  // Which statuses need a note before they can be saved.
+  const needsNote = (s: string) => s === "ON_HOLD" || s === "NOT_REQUIRED" || (s === "COMPLETED" && requiresNote && !hasNote);
+  const choose = (s: string) => {
+    if (s === status) return;
+    if (needsNote(s)) { setNext(s); setNote(""); return; }
+    run(() => setStepStatus(stepId, s, null));
+  };
+  const options = STEP_STATUSES.filter((s) => !(isGoLive && s === "NOT_REQUIRED"));
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-step-controls>
       {error && <Alert tone="danger">{error}</Alert>}
-      {mode === null && (
-        <div className="flex flex-wrap gap-2">
-          {canTick && (
-            <Button size="sm" disabled={pending || blocked} title={blocked ? "Waits for the step before it" : undefined}
-              onClick={() => (requiresNote ? setMode("done") : run(() => completeStep(stepId, null)))}>
-              <Check className="h-3.5 w-3.5" /> {isGoLive ? "Mark live" : "Done"}
-            </Button>
-          )}
-          {canRun && <Button size="sm" variant="outline" onClick={() => setMode("edit")}>Reassign / date</Button>}
-          {canRun && !isGoLive && <Button size="sm" variant="ghost" onClick={() => setMode("skip")}><SkipForward className="h-3.5 w-3.5" /> Skip</Button>}
-        </div>
-      )}
-      {(mode === "done" || mode === "skip") && (
+      <div className="flex flex-wrap items-center gap-2">
+        {canChange ? (
+          <Select aria-label="Status" value={status} disabled={pending} onChange={(e) => choose(e.target.value)} className="w-48">
+            {options.map((s) => (
+              <option key={s} value={s} disabled={blocked && (s === "IN_PROGRESS" || s === "COMPLETED")}>
+                {STEP_STATUS_LABELS[s]}{blocked && (s === "IN_PROGRESS" || s === "COMPLETED") ? " (waits for previous)" : ""}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Badge tone={STEP_STATUS_TONES[status as StepStatus]}>{STEP_STATUS_LABELS[status as StepStatus] ?? status}</Badge>
+        )}
+        {pending && <span className="text-xs text-muted-foreground">Saving…</span>}
+        {canRun && !editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Reassign / date</Button>}
+      </div>
+      {next && (
         <div className="space-y-2">
-          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={mode === "done" ? "What was done (required for this step)" : "Why is it being skipped?"} />
+          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus
+            placeholder={next === "COMPLETED" ? "What was done (required for this step)" : next === "ON_HOLD" ? "Why is it on hold?" : "Why is it not required for this customer?"} />
           <div className="flex gap-2">
-            <Button size="sm" disabled={pending} onClick={() => run(() => (mode === "done" ? completeStep(stepId, note) : skipStep(stepId, note)), () => { setMode(null); setNote(""); })}>
-              {mode === "done" ? "Save as done" : "Skip step"}
+            <Button size="sm" disabled={pending || !note.trim()} onClick={() => run(() => setStepStatus(stepId, next, note), () => { setNext(null); setNote(""); })}>
+              Mark {STEP_STATUS_LABELS[next as StepStatus].toLowerCase()}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setMode(null)}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={() => setNext(null)}>Cancel</Button>
           </div>
         </div>
       )}
-      {mode === "edit" && (
-        <form className="flex flex-wrap items-end gap-2" action={(fd) => run(() => updateStep(stepId, { ownerUserId: String(fd.get("ownerUserId") ?? "") || null, dueDate: String(fd.get("dueDate") ?? "") || null }), () => setMode(null))}>
-          <Select name="ownerUserId" defaultValue={ownerUserId ?? ""} className="w-48">
+      {editing && (
+        <form className="flex flex-wrap items-end gap-2" action={(fd) => run(() => updateStep(stepId, { ownerUserId: String(fd.get("ownerUserId") ?? "") || null, dueDate: String(fd.get("dueDate") ?? "") || null }), () => setEditing(false))}>
+          <Select name="ownerUserId" defaultValue={ownerUserId ?? ""} className="w-48" aria-label="Assigned to">
             <option value="">Nobody</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
           </Select>
-          <Input name="dueDate" type="date" defaultValue={dueDate ?? ""} className="w-40" />
+          <Input name="dueDate" type="date" defaultValue={dueDate ?? ""} className="w-40" aria-label="Due date" />
           <Button size="sm" type="submit" disabled={pending}>Save</Button>
-          <Button size="sm" type="button" variant="ghost" onClick={() => setMode(null)}>Cancel</Button>
+          <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
         </form>
       )}
     </div>

@@ -67,6 +67,7 @@ export default async function OnboardingListPage({
                               {o.summary.next.dueDate && <span className={o.summary.next.dueDate < today ? "text-red-600" : "text-muted-foreground"}>due {formatDate(o.summary.next.dueDate)}</span>}
                               {o.summary.waitingOnCustomer && <Badge tone="warning">Waiting on customer</Badge>}
                               {o.summary.overdue > 0 && <Badge tone="danger">{o.summary.overdue} overdue</Badge>}
+                              {o.summary.onHold > 0 && <Badge tone="danger">{o.summary.onHold} on hold</Badge>}
                             </div>
                           </>
                         ) : "All steps done"}

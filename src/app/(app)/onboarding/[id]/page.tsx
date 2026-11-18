@@ -16,7 +16,7 @@ export default async function OnboardingPage({ params }: { params: Promise<{ id:
   if (!o) notFound();
   const today = new Date().toISOString().slice(0, 10);
   const pct = o.summary.total ? Math.round((o.summary.done / o.summary.total) * 100) : 0;
-  const customerOpen = o.steps.filter((s) => s.stepType === "CUSTOMER" && s.status === "TODO").length;
+  const customerOpen = o.steps.filter((s) => s.stepType === "CUSTOMER" && s.status !== "COMPLETED" && s.status !== "NOT_REQUIRED").length;
 
   return (
     <>

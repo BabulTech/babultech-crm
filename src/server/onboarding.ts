@@ -206,23 +206,26 @@ interface OnboardingRow {
   id: string; onboardingNumber: string; accountId: string; opportunityId: string | null; playbookId: string | null; offeringId: string | null;
   name: string; status: string; managerUserId: string | null; startDate: string; targetGoLive: string | null; wentLiveAt: string | null; cancelReason: string | null;
 }
-type FullStep = StepRow & { phase: string; instructions: string | null; requiresNote: boolean; note: string | null; doneAt: string | null; owner: { id: string; fullName: string } | null; doneBy: { fullName: string } | null };
+type FullStep = StepRow & { phase: string; instructions: string | null; requiresNote: boolean; note: string | null; doneAt: string | null; startedAt: string | null; statusChangedAt: string | null; owner: { id: string; fullName: string } | null; doneBy: { fullName: string } | null; changedBy: { fullName: string } | null };
+const FINISHED = ["COMPLETED", "NOT_REQUIRED"];
+const isOpen = (s: { status: string }) => !FINISHED.includes(s.status);
 type StepRow = { id: string; status: string; dueDate: string | null; stepType: string; ownerUserId: string | null; isGoLive: boolean; sortOrder: number; waitsForPrevious: boolean; title: string };
 
 function summarise(steps: StepRow[]) {
   const sorted = [...steps].sort((a, b) => a.sortOrder - b.sortOrder);
-  const open = sorted.filter((s) => s.status === "TODO");
-  const done = sorted.filter((s) => s.status !== "TODO").length;
+  const open = sorted.filter(isOpen);
+  const done = sorted.length - open.length;
   const overdue = open.filter((s) => s.dueDate && s.dueDate < today()).length;
-  const waitingOnCustomer = open.length > 0 && open.every((s) => s.stepType === "CUSTOMER");
-  return { total: sorted.length, done, overdue, waitingOnCustomer, next: open[0] ?? null };
+  const waitingOnCustomer = open.length > 0 && open.every((s) => s.status === "WAITING_ON_CUSTOMER" || (s.stepType === "CUSTOMER" && s.status === "NOT_STARTED"));
+  const onHold = open.filter((s) => s.status === "ON_HOLD").length;
+  return { total: sorted.length, done, overdue, waitingOnCustomer, onHold, next: open[0] ?? null };
 }
 
 /** Whether a step may be ticked yet: one waiting for the previous needs it done first. */
 function blocked(step: StepRow, all: StepRow[]) {
   if (!step.waitsForPrevious) return false;
   const prev = [...all].sort((a, b) => a.sortOrder - b.sortOrder).filter((s) => s.sortOrder < step.sortOrder).pop();
-  return Boolean(prev && prev.status === "TODO");
+  return Boolean(prev && isOpen(prev));
 }
 
 export async function listOnboardings(filters: { status?: string; offeringId?: string; managerUserId?: string; overdue?: boolean; search?: string } = {}) {
@@ -269,7 +272,7 @@ export async function getOnboarding(id: string) {
   // ticking a step feel stuck.
   const [{ data: steps }, { data: projects }, { data: contacts }, { data: history }] = await Promise.all([
     db().from("onboarding_step")
-      .select("*, owner:app_user!onboarding_step_ownerUserId_fkey ( id, fullName ), doneBy:app_user!onboarding_step_doneById_fkey ( fullName )")
+      .select("*, owner:app_user!onboarding_step_ownerUserId_fkey ( id, fullName ), doneBy:app_user!onboarding_step_doneById_fkey ( fullName ), changedBy:app_user!onboarding_step_statusChangedById_fkey ( fullName )")
       .eq("onboardingId", id).order("sortOrder"),
     o.opportunityId
       ? db().from("project").select("id, name, projectNumber").eq("opportunityId", o.opportunityId).is("deletedAt", null)
@@ -278,7 +281,7 @@ export async function getOnboarding(id: string) {
     db().from("audit_history").select("id, fieldName, oldValue, newValue, changedAt, changedBy:app_user ( fullName )")
       .eq("entityType", "Onboarding").eq("entityId", id).order("changedAt", { ascending: false }).limit(50),
   ]);
-  const list = (steps ?? []).map((s) => ({ ...s, owner: flat(s.owner) as { id: string; fullName: string } | null, doneBy: flat(s.doneBy) as { fullName: string } | null }));
+  const list = (steps ?? []).map((s) => ({ ...s, owner: flat(s.owner) as { id: string; fullName: string } | null, doneBy: flat(s.doneBy) as { fullName: string } | null, changedBy: flat(s.changedBy) as { fullName: string } | null }));
   const mine = list.some((s) => s.ownerUserId === user.id);
   if (!canSeeAll(user) && !mine && o.managerUserId !== user.id) return null;
 
@@ -326,8 +329,8 @@ export async function listOnboardingsForAccount(accountId: string) {
 export async function listMyOnboardingSteps() {
   const user = await requireUser();
   const { data } = await db().from("onboarding_step")
-    .select("id, title, dueDate, stepType, onboarding ( id, onboardingNumber, name, status )")
-    .eq("ownerUserId", user.id).eq("status", "TODO").order("dueDate").limit(50);
+    .select("id, title, dueDate, stepType, status, onboarding ( id, onboardingNumber, name, status )")
+    .eq("ownerUserId", user.id).not("status", "in", "(COMPLETED,NOT_REQUIRED)").order("dueDate").limit(50);
   return (data ?? []).map((s) => ({ ...s, onboarding: flat(s.onboarding) as { id: string; onboardingNumber: string; name: string; status: string } | null }))
     // Follow-up steps carry on after the customer is live.
     .filter((s) => s.onboarding?.status === "ACTIVE" || s.onboarding?.status === "LIVE");
@@ -343,57 +346,70 @@ async function loadStep(stepId: string) {
   return { step, onboarding: flat(step.onboarding) as { id: string; status: string; managerUserId: string | null; opportunityId: string | null; accountId: string; name: string; onboardingNumber: string } };
 }
 
-export async function completeStep(stepId: string, note: string | null): Promise<ActionResult<{ id: string; wentLive: boolean }>> {
+const STEP_STATUS_LABEL: Record<string, string> = {
+  NOT_STARTED: "Not started", IN_PROGRESS: "In progress", WAITING_ON_CUSTOMER: "Waiting on customer",
+  ON_HOLD: "On hold", COMPLETED: "Completed", NOT_REQUIRED: "Not required",
+};
+
+/**
+ * Moves a step to any status. Completed and Not required finish it (recording
+ * when and by whom); the others reopen it. A note is required for On hold and
+ * Not required, and for Completed when the playbook asks for one.
+ */
+export async function setStepStatus(stepId: string, status: string, note: string | null): Promise<ActionResult<{ id: string; wentLive: boolean }>> {
   const auth = await authorize();
   if (!auth.ok) return auth;
+  if (!(status in STEP_STATUS_LABEL)) return { ok: false, error: "Choose a status." };
   const loaded = await loadStep(stepId);
   if (!loaded) return { ok: false, error: "That step no longer exists." };
   const { step, onboarding } = loaded;
   const allowed = step.ownerUserId === auth.user.id || onboarding.managerUserId === auth.user.id || canRun(auth.user);
-  if (!allowed) return { ok: false, error: "Only the step's owner or the onboarding manager can tick it." };
-  if (onboarding.status !== "ACTIVE") return { ok: false, error: "This onboarding is no longer active." };
-  if (step.status !== "TODO") return { ok: false, error: "That step is already done." };
-  if (step.requiresNote && !note?.trim()) return { ok: false, error: "This step needs a note saying what was done." };
-  const { data: all } = await db().from("onboarding_step").select("id, status, sortOrder, waitsForPrevious, dueDate, stepType, ownerUserId, isGoLive, title").eq("onboardingId", onboarding.id);
-  if (blocked(step as StepRow, (all ?? []) as StepRow[])) return { ok: false, error: "This step waits for the one before it. Finish that first." };
+  if (!allowed) return { ok: false, error: "Only the person it is assigned to or the onboarding manager can change this step." };
+  if (onboarding.status === "CANCELLED") return { ok: false, error: "This onboarding was cancelled." };
+  if (step.status === status) return { ok: false, error: `It is already ${STEP_STATUS_LABEL[status].toLowerCase()}.` };
+  const text = note?.trim() || null;
+  if ((status === "ON_HOLD" || status === "NOT_REQUIRED") && !text) return { ok: false, error: `Say why it is ${STEP_STATUS_LABEL[status].toLowerCase()}.` };
+  if (status === "COMPLETED" && step.requiresNote && !text && !step.note) return { ok: false, error: "This step needs a note saying what was done." };
+  if (status === "NOT_REQUIRED" && step.isGoLive) return { ok: false, error: "The go-live step cannot be marked not required - complete it when the customer is live." };
 
-  await db().from("onboarding_step").update({ status: "DONE", doneById: auth.user.id, doneAt: now(), note: note?.trim() || null }).eq("id", stepId);
-  await audit(onboarding.id, "step", step.title, "Done", auth.user.id);
+  const { data: all } = await db().from("onboarding_step").select("id, status, sortOrder, waitsForPrevious, dueDate, stepType, ownerUserId, isGoLive, title").eq("onboardingId", onboarding.id);
+  if ((status === "IN_PROGRESS" || status === "COMPLETED") && blocked(step as StepRow, (all ?? []) as StepRow[])) {
+    return { ok: false, error: "This step waits for the one before it. Finish that first." };
+  }
+
+  const finishing = FINISHED.includes(status);
+  const patch: Record<string, unknown> = {
+    status, statusChangedAt: now(), statusChangedById: auth.user.id,
+    doneAt: finishing ? now() : null, doneById: finishing ? auth.user.id : null,
+  };
+  if (status === "IN_PROGRESS" && !step.startedAt) patch.startedAt = now();
+  if (text) patch.note = text;
+  const { error } = await db().from("onboarding_step").update(patch).eq("id", stepId).eq("status", step.status);
+  if (error) return { ok: false, error: error.message };
+  await audit(onboarding.id, "step", step.title, `${STEP_STATUS_LABEL[step.status] ?? step.status} → ${STEP_STATUS_LABEL[status]}${text ? `: ${text}` : ""}`, auth.user.id);
 
   // The next step that was waiting on this one can start: tell its owner.
-  const next = ((all ?? []) as StepRow[]).filter((s) => s.sortOrder > step.sortOrder && s.status === "TODO").sort((a, b) => a.sortOrder - b.sortOrder)[0];
-  if (next?.waitsForPrevious && next.ownerUserId && next.ownerUserId !== auth.user.id) {
-    await notify(next.ownerUserId, `Ready for you: ${next.title}`, `${onboarding.name} (${onboarding.onboardingNumber})`, `/onboarding/${onboarding.id}`, onboarding.id);
+  if (finishing) {
+    const next = ((all ?? []) as StepRow[]).filter((s) => s.sortOrder > step.sortOrder && isOpen(s)).sort((a, b) => a.sortOrder - b.sortOrder)[0];
+    if (next?.waitsForPrevious && next.ownerUserId && next.ownerUserId !== auth.user.id) {
+      await notify(next.ownerUserId, `Ready for you: ${next.title}`, `${onboarding.name} (${onboarding.onboardingNumber})`, `/onboarding/${onboarding.id}`, onboarding.id);
+    }
   }
 
   let wentLive = false;
-  if (step.isGoLive) {
+  if (step.isGoLive && status === "COMPLETED" && onboarding.status === "ACTIVE") {
     wentLive = true;
     await db().from("onboarding").update({ status: "LIVE", wentLiveAt: now(), updatedAt: now() }).eq("id", onboarding.id);
     await audit(onboarding.id, "status", "ACTIVE", "LIVE", auth.user.id);
     if (onboarding.managerUserId && onboarding.managerUserId !== auth.user.id) {
       await notify(onboarding.managerUserId, `${onboarding.name} is live`, "The go-live step was completed. Follow-up steps stay on the list.", `/onboarding/${onboarding.id}`, onboarding.id);
     }
-  }
-  refresh(onboarding.id, onboarding.opportunityId);
-  return { ok: true, data: { id: stepId, wentLive } };
-}
-
-export async function reopenStep(stepId: string): Promise<ActionResult<{ id: string }>> {
-  const auth = await authorize();
-  if (!auth.ok) return auth;
-  const loaded = await loadStep(stepId);
-  if (!loaded) return { ok: false, error: "That step no longer exists." };
-  const { step, onboarding } = loaded;
-  if (!(onboarding.managerUserId === auth.user.id || canRun(auth.user) || step.doneById === auth.user.id)) return { ok: false, error: "Only the onboarding manager can reopen a step." };
-  await db().from("onboarding_step").update({ status: "TODO", doneById: null, doneAt: null }).eq("id", stepId);
-  await audit(onboarding.id, "step", step.title, "Reopened", auth.user.id);
-  if (step.isGoLive && onboarding.status === "LIVE") {
+  } else if (step.isGoLive && step.status === "COMPLETED" && onboarding.status === "LIVE") {
     await db().from("onboarding").update({ status: "ACTIVE", wentLiveAt: null, updatedAt: now() }).eq("id", onboarding.id);
     await audit(onboarding.id, "status", "LIVE", "ACTIVE", auth.user.id);
   }
   refresh(onboarding.id, onboarding.opportunityId);
-  return { ok: true, data: { id: stepId } };
+  return { ok: true, data: { id: stepId, wentLive } };
 }
 
 async function requireRunner(onboardingId: string, user: SessionUser) {
@@ -401,21 +417,6 @@ async function requireRunner(onboardingId: string, user: SessionUser) {
   if (!o) return { error: "That onboarding no longer exists." } as const;
   if (!(o.managerUserId === user.id || canRun(user))) return { error: "Only the onboarding manager or someone who can edit deals can do that." } as const;
   return { o } as const;
-}
-
-export async function skipStep(stepId: string, reason: string): Promise<ActionResult<{ id: string }>> {
-  const auth = await authorize();
-  if (!auth.ok) return auth;
-  const loaded = await loadStep(stepId);
-  if (!loaded) return { ok: false, error: "That step no longer exists." };
-  const r = await requireRunner(loaded.onboarding.id, auth.user);
-  if ("error" in r) return { ok: false, error: r.error! };
-  if (!reason.trim()) return { ok: false, error: "Say why the step is being skipped." };
-  if (loaded.step.isGoLive) return { ok: false, error: "The go-live step cannot be skipped - tick it when the customer is live." };
-  await db().from("onboarding_step").update({ status: "SKIPPED", doneById: auth.user.id, doneAt: now(), note: `Skipped: ${reason.trim()}` }).eq("id", stepId);
-  await audit(loaded.onboarding.id, "step", loaded.step.title, "Skipped", auth.user.id);
-  refresh(loaded.onboarding.id, loaded.onboarding.opportunityId);
-  return { ok: true, data: { id: stepId } };
 }
 
 export async function updateStep(stepId: string, input: { ownerUserId?: string | null; dueDate?: string | null }): Promise<ActionResult<{ id: string }>> {
@@ -470,7 +471,7 @@ export async function emailCustomerChecklist(id: string, contactIds: string[], m
   if ("error" in r) return { ok: false, error: r.error! };
   if (!process.env.RESEND_API_KEY) return { ok: false, error: "Email is not set up." };
   const { data: o } = await db().from("onboarding").select("accountId, name, onboardingNumber, account ( name )").eq("id", id).single();
-  const { data: steps } = await db().from("onboarding_step").select("title, instructions, dueDate").eq("onboardingId", id).eq("stepType", "CUSTOMER").eq("status", "TODO").order("sortOrder");
+  const { data: steps } = await db().from("onboarding_step").select("title, instructions, dueDate").eq("onboardingId", id).eq("stepType", "CUSTOMER").not("status", "in", "(COMPLETED,NOT_REQUIRED)").order("sortOrder");
   if (!steps?.length) return { ok: false, error: "Nothing is waiting on the customer." };
   const { data: contacts } = await db().from("contact").select("id, firstName, email").in("id", contactIds.length ? contactIds : ["00000000-0000-0000-0000-000000000000"]).eq("accountId", o!.accountId);
   const to = (contacts ?? []).map((c) => c.email as string).filter(Boolean);

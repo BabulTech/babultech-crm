@@ -79,6 +79,9 @@ export default async function MyWorkPage() {
         </Card>
       )}
 
+      {/* Outside the empty state: someone with no tasks may still have onboarding steps. */}
+      <div className="mb-6"><MyOnboardingSteps /></div>
+
       {nothingAssigned ? (
         <EmptyState
           title="Nothing assigned to you yet"
@@ -127,7 +130,6 @@ export default async function MyWorkPage() {
             </div>
           )}
 
-          <MyOnboardingSteps />
 
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center gap-2">

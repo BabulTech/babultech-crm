@@ -3,6 +3,7 @@ import { Rocket } from "lucide-react";
 import { listMyOnboardingSteps, listOnboardingsForAccount } from "@/server/onboarding";
 import { Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
+import { STEP_STATUS_LABELS, STEP_STATUS_TONES, type StepStatus } from "@/lib/onboarding";
 
 /** My work: onboarding steps that are mine to do. Hidden when there are none. */
 export async function MyOnboardingSteps() {
@@ -10,7 +11,7 @@ export async function MyOnboardingSteps() {
   if (steps.length === 0) return null;
   const today = new Date().toISOString().slice(0, 10);
   return (
-    <Card className="mt-6" data-my-onboarding>
+    <Card data-my-onboarding>
       <CardHeader className="flex flex-row items-center gap-2">
         <Rocket className="h-4 w-4 text-muted-foreground" />
         <CardTitle>My onboarding steps</CardTitle>
@@ -21,7 +22,7 @@ export async function MyOnboardingSteps() {
             <span>
               <span className="font-medium">{s.title}</span>
               <span className="text-muted-foreground"> · {s.onboarding!.name}</span>
-              {s.stepType === "CUSTOMER" && <Badge tone="warning" className="ml-2">From customer</Badge>}
+              <Badge tone={STEP_STATUS_TONES[s.status as StepStatus]} className="ml-2">{STEP_STATUS_LABELS[s.status as StepStatus] ?? s.status}</Badge>
             </span>
             <span className={s.dueDate && s.dueDate < today ? "font-medium text-red-600" : "text-muted-foreground"}>{formatDate(s.dueDate)}</span>
           </Link>
