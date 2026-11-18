@@ -2,6 +2,7 @@ import { sendNextLeadEmails } from "./lead-mailer";
 import { sendPendingNotificationEmails } from "./notification-mailer";
 import { deliverWebhooks } from "./webhook-delivery";
 import { sendWeeklySummary } from "./weekly-summary";
+import { sendTimesheetReport } from "./weekly-timesheet-report";
 
 /**
  * What each kind of background job does, one chunk at a time.
@@ -57,9 +58,16 @@ const weeklySummary: JobHandler = async () => {
   return { processed: r.sent + r.failed, done: true, result: { sent: r.sent, failed: r.failed }, errors: r.errors };
 };
 
+/** The Monday timesheet report to every employee, in one go. */
+const weeklyTimesheetReport: JobHandler = async () => {
+  const r = await sendTimesheetReport();
+  return { processed: r.sent + r.failed, done: true, result: { sent: r.sent, failed: r.failed }, errors: r.errors };
+};
+
 export const JOB_HANDLERS = {
   lead_email: leadEmail,
   weekly_summary: weeklySummary,
+  weekly_timesheet_report: weeklyTimesheetReport,
 } satisfies Record<string, JobHandler>;
 
 export type JobType = keyof typeof JOB_HANDLERS;

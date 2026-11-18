@@ -171,7 +171,7 @@ const REFERENCE: Reference[] = [
     title: "Timesheets",
     href: "/timesheets",
     needs: PERMISSIONS.PROJECT_READ,
-    body: "Time logged against project tasks. Submitted, then approved, before it can be billed. Unlogged hours cost the project nothing and make utilisation read low.",
+    body: "Time logged against project tasks. Submitted, then approved, before it can be billed. Unlogged hours cost the project nothing and make utilisation read low. Every Monday at 9 am every employee is emailed last week's timesheets for the whole team: name, committed hours, logged hours (short weeks marked) and the approver's notes, or \"Not submitted\".",
   },
   {
     icon: UsersRound,
